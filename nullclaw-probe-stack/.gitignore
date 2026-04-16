@@ -1,0 +1,9 @@
+.env
+data/config.json
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/logs/
+data/workspace/
+data/audit/
+data/daemon_state.json

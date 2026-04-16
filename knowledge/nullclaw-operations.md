@@ -1,165 +1,177 @@
 # NullClaw Operations
 
-## Stack Location
+## Primary Stack Layout
 
-Our deployment wrapper lives in [nullclaw-stack](/Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-stack).
+This project now operates two primary layers:
 
-Key files:
+- runtime plane: `aquarium-nullclaw-runtimes`
+- secrets backend: `aquarium-infisical`
 
-- compose file: [nullclaw-stack/docker-compose.yml](/Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-stack/docker-compose.yml)
-- env template: [nullclaw-stack/.env.example](/Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-stack/.env.example)
-- config generator: [nullclaw-stack/scripts/render-config.sh](/Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-stack/scripts/render-config.sh)
+Tracked control-plane code:
+
+- orchestrator CLI: [orchestrator/cli.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/cli.py)
+- compose generator: [orchestrator/compose.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/compose.py)
+- Infisical integration: [orchestrator/infisical.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/infisical.py)
+
+Legacy/manual stack files still exist, but they are no longer the primary operational path.
 
 ## First-Time Setup
 
-1. Copy `.env.example` to `.env`.
-2. Fill in real secrets and confirm defaults.
-3. Generate runtime config.
-4. Start the `gateway` service.
+High-level order:
 
-Expected working directory:
+1. prepare `infisical-stack/.env`
+2. start `aquarium-infisical`
+3. create the first Infisical admin and log in locally
+4. initialize the orchestrator
+5. create `test-nullclaw`
+6. create `probe`
 
-```bash
-cd /Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-stack
-```
+Project root helpers live in [Makefile](/Users/ilyagmirin/PycharmProjects/aquarium/Makefile).
 
-Wrapper-level helper commands also exist at the project root in [Makefile](/Users/ilyagmirin/PycharmProjects/aquarium/Makefile).
+## Start Infisical
 
-## Generate Runtime Config
-
-Run:
+From the project root:
 
 ```bash
-./scripts/render-config.sh
+make infisical-up
+make infisical-health
 ```
 
-This should create:
-
-- `data/config.json`
-- `data/workspace/`
-
-If generation fails, do not start the stack before fixing the env contract.
-
-## Start The Stack
-
-Long-running runtime:
+Expected health endpoint:
 
 ```bash
-docker compose up -d gateway
+curl http://127.0.0.1:18080/api/status
 ```
 
-Note:
+The UI/API is intentionally loopback-only.
 
-- inside Docker, the gateway command overrides the bind host to `::`
-- exposure is still restricted because the published host port is `127.0.0.1:3000`
+## Initialize The Orchestrator
 
-Interactive or one-shot CLI:
+From the project root:
 
 ```bash
-docker compose run --rm agent-cli
+.venv/bin/orchestrator init
 ```
 
-One-shot command example:
+Or through the helper:
 
 ```bash
-docker compose run --rm agent-cli agent -m "hello"
+make orchestrator-init
 ```
 
-## Stop The Stack
+## Create Or Update A Runtime
 
-Stop the long-running runtime:
+Live runtime:
 
 ```bash
-docker compose stop gateway
+OPENROUTER_API_KEY=... \
+TELEGRAM_BOT_TOKEN=... \
+TELEGRAM_ALLOW_FROM=373793732 \
+.venv/bin/orchestrator runtime create --id test-nullclaw --telegram --gateway-port 3000
 ```
 
-Remove stopped containers:
+Probe runtime:
 
 ```bash
-docker compose down
+OPENROUTER_API_KEY=probe-distinct-key \
+.venv/bin/orchestrator runtime create --id probe --no-telegram --gateway-port 3002
 ```
 
-## Health Checks
+## Day-To-Day Commands
 
-Primary local health check:
+List runtimes:
 
 ```bash
-curl http://127.0.0.1:3000/health
+.venv/bin/orchestrator runtime list
 ```
 
-Current observed result in this project:
+Start one runtime:
 
-```json
-{"status":"ok"}
+```bash
+.venv/bin/orchestrator runtime up --id test-nullclaw
 ```
 
-Compose health should also reflect the same endpoint.
+Stop one runtime:
+
+```bash
+.venv/bin/orchestrator runtime stop --id test-nullclaw
+```
+
+Status:
+
+```bash
+.venv/bin/orchestrator runtime status --id test-nullclaw
+.venv/bin/orchestrator runtime status --id probe
+```
+
+Delete one runtime without deleting the Infisical project:
+
+```bash
+.venv/bin/orchestrator runtime delete --id probe
+```
 
 ## Logs
 
-Container logs:
+Infisical logs:
 
 ```bash
-docker compose logs -f gateway
+cd /Users/ilyagmirin/PycharmProjects/aquarium/infisical-stack
+docker compose logs -f backend
 ```
 
-NullClaw runtime logs inside mounted data should also be inspected if needed, depending on runtime behavior and service mode.
-
-The important expected log categories are:
-
-- startup/config parsing
-- Telegram message receipt
-- tool execution logs
-- LLM I/O previews
-- token usage ledger activity
-
-Current observed startup log highlights:
-
-- runtime starts successfully
-- model resolves as `openrouter/qwen/qwen3.6-plus`
-- provider resolves as `openrouter`
-- gateway listens on `:::3000` inside the container
-- Telegram polling thread starts
-
-## Entering The CLI Container
-
-Interactive CLI session:
+Runtime-plane logs:
 
 ```bash
-docker compose run --rm agent-cli
+docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml logs -f gateway-test-nullclaw
+docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml logs -f gateway-probe
 ```
 
-Interactive shell for debugging the image environment:
+## CLI Entry
+
+One-shot agent execution through the shared compose file:
 
 ```bash
-docker compose run --rm --entrypoint sh agent-cli
+docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml run --rm agent-test-nullclaw agent -m "hello"
+```
+
+Probe CLI:
+
+```bash
+docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml run --rm agent-probe agent -m "hello"
 ```
 
 ## Safe Restart Procedure
 
-When env or generated config changes:
+When a runtime secret changes in Infisical:
 
-1. regenerate `data/config.json`
-2. run `docker compose config`
-3. restart `gateway`
+1. update the secret in Infisical
+2. rerun `runtime create` with the new secret value or create a fresh service token
+3. restart only the affected runtime
 
-Suggested flow:
-
-```bash
-cd /Users/ilyagmirin/PycharmProjects/aquarium
-make stack-config
-cd nullclaw-stack && docker compose up -d gateway
-```
-
-If only the long-running process needs a restart:
+Example:
 
 ```bash
-docker compose restart gateway
+.venv/bin/orchestrator runtime up --id test-nullclaw
 ```
+
+The runtime `config.json` is regenerated on every container start through the entrypoint flow, so manual regeneration is not the normal container path.
+
+## Isolation Check
+
+Run:
+
+```bash
+.venv/bin/orchestrator runtime probe-check --id probe --target test-nullclaw
+```
+
+Expected result:
+
+- probe runtime can access only its own project secret
+- cross-project read is rejected
 
 ## Operational Notes
 
-- The stack is intentionally loopback-only at startup.
-- Telegram is intended to work without public webhook exposure in the starter setup.
-- Public exposure, tunnels, or webhook-first flows must be documented before adoption.
-- Any operational changes must also update `knowledge/`.
+- `test-nullclaw` is the production-like local runtime
+- `probe` exists to verify isolation and to keep a second instance in the same shared compose plane
+- service lifecycle is now owned by the Python orchestrator
+- any future control-plane/UI change that affects lifecycle, status, restart, or rotation must update this document

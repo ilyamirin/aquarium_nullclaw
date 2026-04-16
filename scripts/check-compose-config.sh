@@ -5,7 +5,17 @@ ROOT_DIR=$(
   CDPATH='' cd -- "$(dirname "$0")/.."
   pwd
 )
-STACK_DIR="$ROOT_DIR/nullclaw-stack"
 
-docker compose -f "$STACK_DIR/docker-compose.yml" config >/dev/null
-echo "docker compose config is valid: $STACK_DIR/docker-compose.yml"
+for stack_dir in \
+  "$ROOT_DIR/nullclaw-stack" \
+  "$ROOT_DIR/nullclaw-probe-stack" \
+  "$ROOT_DIR/infisical-stack"; do
+  docker compose -f "$stack_dir/docker-compose.yml" config >/dev/null
+  echo "docker compose config is valid: $stack_dir/docker-compose.yml"
+done
+
+GENERATED_COMPOSE="$ROOT_DIR/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml"
+if [ -f "$GENERATED_COMPOSE" ]; then
+  docker compose -f "$GENERATED_COMPOSE" config >/dev/null
+  echo "docker compose config is valid: $GENERATED_COMPOSE"
+fi

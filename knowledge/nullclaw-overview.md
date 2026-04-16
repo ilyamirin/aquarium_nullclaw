@@ -45,16 +45,24 @@ If we later need to patch NullClaw itself, we can add a dev image based on the l
 
 ## Current Deployment Shape
 
-The local deployment wrapper lives in [nullclaw-stack](/Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-stack).
+The local deployment wrapper is now split into three primary pieces:
 
-It is designed around:
+- Python control plane: [orchestrator](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator)
+- centralized secrets backend: [infisical-stack](/Users/ilyagmirin/PycharmProjects/aquarium/infisical-stack)
+- ignored runtime inventory and generated compose under `.aquarium/`
 
-- one long-running `gateway` container
-- one optional `agent-cli` container for one-shot or interactive work
+Legacy/manual wrappers still exist in [nullclaw-stack](/Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-stack) and [nullclaw-probe-stack](/Users/ilyagmirin/PycharmProjects/aquarium/nullclaw-probe-stack), but new runtime creation is expected to happen through the orchestrator.
+
+The runtime side is designed around:
+
+- one shared Compose project for all runtimes
+- one long-running `gateway` service per runtime
+- one optional `agent` service per runtime
 - a generated runtime `config.json`
-- a local `data/` directory mounted into `/nullclaw-data`
+- a per-runtime ignored home mounted into `/nullclaw-data`
 - loopback-only exposure
-- Telegram in private mode
+- Infisical-driven env injection
+- Telegram in private mode for the live instance
 - OpenRouter as the model provider
 
 ## Current Runtime Decisions
@@ -65,10 +73,28 @@ The current baseline decisions are:
 - model: `openrouter/qwen/qwen3.6-plus`
 - Telegram mode: private allowlist
 - allowed Telegram user ID: `373793732`
+- centralized secrets backend: self-hosted Infisical
+- isolation model: one Infisical project per NullClaw instance
 - gateway exposure: loopback only
 - security mode: supervised, workspace-only
 - shell/web expansion: not enabled by default
 - logging and LLM I/O diagnostics: enabled
+
+## Why We Added Infisical
+
+NullClaw’s built-in encrypted secret store is acceptable for a single local runtime, but it is not a strong foundation for a future hosting control plane.
+
+We added Infisical because we need:
+
+- a clearer per-instance secret boundary
+- a path toward central secret ownership
+- a future UI model where a hosted instance is not the ultimate owner of its own secrets
+
+The resulting architecture is:
+
+- Infisical owns application secret values
+- the Python orchestrator owns bootstrap, local state, service tokens, and runtime orchestration
+- NullClaw consumes injected secrets at runtime
 
 ## Current Limitations
 

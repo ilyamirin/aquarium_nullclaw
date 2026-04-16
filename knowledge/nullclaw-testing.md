@@ -1,132 +1,124 @@
 # NullClaw Testing
 
-## Current Testing Intent
+## Current Acceptance Targets
 
-The current local stack is designed for staged testing:
+Primary runtimes:
 
-1. stack and config sanity
-2. OpenRouter model invocation
-3. Telegram private-chat flow
-4. observability verification
-5. deeper tool and scheduler checks
+- `test-nullclaw`
+- `probe`
+
+Primary compose project:
+
+- `aquarium-nullclaw-runtimes`
+
+Secrets backend:
+
+- `aquarium-infisical`
 
 ## Smoke Tests
 
-Minimum smoke checks:
+### Environment And Orchestrator
 
-- `docker compose config` succeeds
-- runtime config exists and is valid JSON
-- `gateway` starts successfully
-- `curl http://127.0.0.1:3000/health` returns healthy response
-- startup logs do not show config parsing failure
-
-Current status:
-
-- `render-config.sh` executed successfully
-- generated `config.json` is valid JSON
-- `docker compose config` passed
-- `gateway` container started and became healthy
-- host-side `/health` returned `{"status":"ok"}`
-
-## OpenRouter / Model Tests
-
-Required checks:
-
-- one-shot agent invocation succeeds
-- runtime uses OpenRouter
-- configured model is `openrouter/qwen/qwen3.6-plus`
-- LLM request and response previews appear in logs
-- token usage ledger is written
-
-Suggested manual command:
+Run:
 
 ```bash
-docker compose run --rm agent-cli agent -m "Say hello and confirm your model route."
+.venv/bin/orchestrator init
 ```
 
-Current status:
+Expected:
 
-- verified with one-shot CLI run
-- OpenRouter request succeeded
-- model confirmed in response and logs as `openrouter/qwen/qwen3.6-plus`
-- LLM request/response preview logs were emitted
-- token metric log was emitted
+- Python 3.12 `.venv` is accepted
+- Docker is available
+- Infisical CLI is available
+- `http://127.0.0.1:18080/api/status` is reachable
+- `.aquarium/` state layout exists
 
-## Telegram Tests
+### Runtime Creation
 
-Current Telegram target:
+Create the live runtime:
 
-- allowed user id: `373793732`
+```bash
+OPENROUTER_API_KEY=... \
+TELEGRAM_BOT_TOKEN=... \
+TELEGRAM_ALLOW_FROM=373793732 \
+.venv/bin/orchestrator runtime create --id test-nullclaw --telegram --gateway-port 3000
+```
 
-Private bot validation sequence:
+Create the probe runtime:
 
-1. ensure `gateway` is running
-2. send a private message from the allowed Telegram account
-3. confirm the bot responds
-4. send a follow-up and confirm continuity
-5. inspect logs for message receipt and outbound handling
+```bash
+OPENROUTER_API_KEY=probe-distinct-key \
+.venv/bin/orchestrator runtime create --id probe --no-telegram --gateway-port 3002
+```
 
-Negative test:
+Expected:
 
-- message from a non-allowlisted user should not be accepted
+- both runtimes appear in `.aquarium/state/runtimes.json`
+- shared compose file is regenerated
+- `gateway-test-nullclaw` and `gateway-probe` start in one Compose project
 
-Current status:
+### Status Checks
 
-- Telegram polling thread is running
-- end-to-end private message test still needs a real message sent from the allowed Telegram account
-- non-allowlisted rejection is not yet empirically verified
+Run:
 
-## Observability Tests
+```bash
+.venv/bin/orchestrator runtime status --id test-nullclaw
+.venv/bin/orchestrator runtime status --id probe
+```
 
-Expected signals:
+Expected:
 
-- health endpoint works
-- container logs are readable
-- message receipt logs exist
-- message payload logs exist
-- tool-call logs exist when tools run
-- LLM I/O logs exist
-- token usage ledger exists
+- `test-nullclaw` health uses `127.0.0.1:3000/health`
+- `probe` health uses `127.0.0.1:3002/health`
 
-Audit logging:
+## Telegram Test
 
-- if confirmed in runtime output, record exact file path and example behavior
-- if not yet verified, document that audit is a follow-up validation item
+Only `test-nullclaw` should have Telegram enabled.
 
-Current status:
+Manual flow:
 
-- container logs and startup/runtime logs are confirmed
-- tool-call logging is configured but not yet exercised by a real tool run
-- message receipt/payload logging is configured but not yet exercised by a Telegram message
-- LLM I/O logging is confirmed
-- token usage ledger file is not yet confirmed on disk and should be treated as a follow-up check
-- audit log file is not yet confirmed on disk and should be treated as a follow-up check
+1. send a message to the configured bot from account `373793732`
+2. confirm a reply arrives
+3. confirm `probe` has no Telegram bot attached and required no bot token for startup
 
-## Safe Capability Tests We Can Run Early
+Current verified status:
 
-These are reasonable early tests without expanding trust boundaries:
+- this flow succeeded after the orchestrator migration
+- the live bot answered correctly with secrets loaded from Infisical through runtime env injection
 
-- basic chat
-- multi-turn chat continuity
-- file reads and writes inside workspace
-- `memory_store` and `memory_recall`
-- scheduler-related checks
+## Isolation Proof
 
-## Deferred Tests
+Run:
 
-Do not treat these as part of the first green path unless config is intentionally expanded:
+```bash
+.venv/bin/orchestrator runtime probe-check --id probe --target test-nullclaw
+```
 
-- unrestricted shell execution
-- unrestricted filesystem access
-- public webhook channels
-- tunnels
-- external web search providers
-- public/open bot access
+Expected:
 
-## Known Risks / Follow-Ups
+- probe can read its own OpenRouter secret
+- target can read its own OpenRouter secret
+- probe cannot read target OpenRouter secret
 
-- Telegram runtime behavior must be validated against the real bot token in the actual deployed stack
-- OpenRouter quota or provider-side limits may affect tool-heavy conversations
-- audit logging path and exact runtime artifact location still need explicit runtime confirmation
-- if the future UI layer manages secrets or config regeneration, this document must be updated with that contract
-- Docker host health checks require the container bind override; do not revert to container-only `127.0.0.1` bind without re-validating host reachability
+The proof is strongest when `probe` intentionally uses a distinct OpenRouter key value.
+
+## Observability Checks
+
+Expected runtime signals:
+
+- service starts cleanly
+- generated `config.json` exists only in ignored runtime state
+- LLM request/response preview logs are enabled
+- token usage ledger is enabled
+
+Current verified status:
+
+- both `test-nullclaw` and `probe` reached healthy state
+- one-shot agent execution on `test-nullclaw` returned `LIVE-OK`
+- generated `config.json` exists under `.aquarium/runtimes/<id>/home/config.json`
+
+## Known Gaps
+
+- service tokens are currently long-lived and stored in ignored runtime env files; secret-zero is improved but not eliminated
+- the older manual stack artifacts still exist and can confuse operators if they are treated as primary paths
+- the runtime plane does not yet expose an HTTP control-plane API; the Python CLI is the sole orchestrator interface for now

@@ -1,4 +1,4 @@
-name: aquarium-nullclaw
+name: aquarium-nullclaw-probe
 
 services:
   gateway:
@@ -14,10 +14,10 @@ services:
     environment:
       NULLCLAW_HOME: /nullclaw-data
       NULLCLAW_RENDER_CONFIG_SCRIPT: /opt/stack-scripts/render-config.sh
-      NULLCLAW_GATEWAY_PORT: ${NULLCLAW_GATEWAY_PORT:-3000}
+      NULLCLAW_GATEWAY_PORT: ${NULLCLAW_GATEWAY_PORT:-3002}
       NULLCLAW_GATEWAY_HOST: ${NULLCLAW_GATEWAY_HOST:-127.0.0.1}
     ports:
-      - "127.0.0.1:${NULLCLAW_GATEWAY_PORT:-3000}:3000"
+      - "127.0.0.1:${NULLCLAW_GATEWAY_PORT:-3002}:3000"
     volumes:
       - ./data:/nullclaw-data
       - ../scripts:/opt/aquarium-scripts:ro
@@ -42,7 +42,7 @@ services:
     environment:
       NULLCLAW_HOME: /nullclaw-data
       NULLCLAW_RENDER_CONFIG_SCRIPT: /opt/stack-scripts/render-config.sh
-      NULLCLAW_GATEWAY_PORT: ${NULLCLAW_GATEWAY_PORT:-3000}
+      NULLCLAW_GATEWAY_PORT: ${NULLCLAW_GATEWAY_PORT:-3002}
       NULLCLAW_GATEWAY_HOST: ${NULLCLAW_GATEWAY_HOST:-127.0.0.1}
     volumes:
       - ./data:/nullclaw-data

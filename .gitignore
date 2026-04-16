@@ -2,12 +2,18 @@
 /nullclaw/
 
 # Local runtime secrets and generated state.
+/.aquarium/
 /nullclaw-stack/.env
 /nullclaw-stack/data/
+/nullclaw-probe-stack/.env
+/nullclaw-probe-stack/data/
+/infisical-stack/.env
+/infisical-stack/data/
 
 # Security and scan artifacts.
 /.pre-commit-cache/
 /.cache/
+/.playwright-cli/
 /.trivy/
 /reports/
 *.sarif
@@ -20,6 +26,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 .python-version
+*.egg-info/
 
 # Editors and OS noise.
 .DS_Store
@@ -41,3 +48,8 @@ __pycache__/
 !/nullclaw-stack/.env.example
 !/nullclaw-stack/docker-compose.yml
 !/nullclaw-stack/scripts/
+!/nullclaw-probe-stack/.env.example
+!/nullclaw-probe-stack/docker-compose.yml
+!/nullclaw-probe-stack/scripts/
+!/infisical-stack/.env.example
+!/infisical-stack/docker-compose.yml
