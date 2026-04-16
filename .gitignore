@@ -1,0 +1,43 @@
+# Upstream dependency: local reference only, never versioned here.
+/nullclaw/
+
+# Local runtime secrets and generated state.
+/nullclaw-stack/.env
+/nullclaw-stack/data/
+
+# Security and scan artifacts.
+/.pre-commit-cache/
+/.cache/
+/.trivy/
+/reports/
+*.sarif
+*.jsonl
+
+# Python and generic tool caches.
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.python-version
+
+# Editors and OS noise.
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+
+# Shell and dotenv accidentals.
+.env
+.env.local
+.env.*.local
+
+# Keep the actual project wrapper and docs tracked.
+!/knowledge/
+!/nullclaw-stack/.env.example
+!/nullclaw-stack/docker-compose.yml
+!/nullclaw-stack/scripts/

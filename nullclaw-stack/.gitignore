@@ -1,0 +1,5 @@
+.env
+data/config.json
+data/logs/
+data/state/
+data/workspace/

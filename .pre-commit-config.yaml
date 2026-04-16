@@ -1,0 +1,61 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args: ["-c", ".yamllint.yml"]
+
+  - repo: local
+    hooks:
+      - id: docker-compose-config
+        name: validate docker compose config
+        entry: scripts/check-compose-config.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: shellcheck-system
+        name: shellcheck
+        entry: shellcheck
+        language: system
+        files: \.sh$
+        stages: [pre-commit]
+
+      - id: shfmt-system
+        name: shfmt
+        entry: shfmt -w -i 2 -ci
+        language: system
+        files: \.sh$
+        stages: [pre-commit]
+
+      - id: generated-nullclaw-config-json
+        name: validate generated nullclaw config when present
+        entry: scripts/check-generated-config.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: trivy-config-optional
+        name: trivy config scan (manual helper)
+        entry: scripts/check-security.sh config
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

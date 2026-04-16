@@ -1,0 +1,37 @@
+services:
+  gateway:
+    image: ${NULLCLAW_IMAGE:-ghcr.io/nullclaw/nullclaw:latest}
+    command: ["gateway", "--host", "::", "--port", "3000"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NULLCLAW_HOME: /nullclaw-data
+      NULLCLAW_GATEWAY_PORT: ${NULLCLAW_GATEWAY_PORT:-3000}
+      NULLCLAW_GATEWAY_HOST: ${NULLCLAW_GATEWAY_HOST:-127.0.0.1}
+    ports:
+      - "127.0.0.1:${NULLCLAW_GATEWAY_PORT:-3000}:3000"
+    volumes:
+      - ./data:/nullclaw-data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  agent-cli:
+    image: ${NULLCLAW_IMAGE:-ghcr.io/nullclaw/nullclaw:latest}
+    profiles: ["cli"]
+    stdin_open: true
+    tty: true
+    command: ["agent"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NULLCLAW_HOME: /nullclaw-data
+      NULLCLAW_GATEWAY_PORT: ${NULLCLAW_GATEWAY_PORT:-3000}
+      NULLCLAW_GATEWAY_HOST: ${NULLCLAW_GATEWAY_HOST:-127.0.0.1}
+    volumes:
+      - ./data:/nullclaw-data
