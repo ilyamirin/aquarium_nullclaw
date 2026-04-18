@@ -1,0 +1,202 @@
+logging {
+  level = "info"
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  labels        = {"source" = "docker", "platform" = "aquarium"}
+  relabel_rules = discovery.relabel.docker_logs.rules
+  forward_to    = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+otelcol.receiver.otlp "default" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo:4318"
+  }
+}
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "http://mimir:9009/api/v1/push"
+  }
+}
+
+prometheus.exporter.self "alloy" {}
+
+prometheus.scrape "alloy_self" {
+  targets        = prometheus.exporter.self.alloy.targets
+  scrape_interval = "15s"
+  forward_to     = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.exporter.blackbox "health" {
+  config = "{ modules: { http_2xx: { prober: http, timeout: 5s } } }"
+
+  target {
+    name    = "nullclaw-test-nullclaw"
+    address = "http://host.docker.internal:3000/health"
+    module  = "http_2xx"
+    labels = {
+      "service" = "nullclaw-test-nullclaw",
+      "stack"   = "aquarium-nullclaw-runtimes",
+    }
+  }
+
+  target {
+    name    = "nullclaw-probe"
+    address = "http://host.docker.internal:3002/health"
+    module  = "http_2xx"
+    labels = {
+      "service" = "nullclaw-probe",
+      "stack"   = "aquarium-nullclaw-runtimes",
+    }
+  }
+
+  target {
+    name    = "nullclaw-limit-probe"
+    address = "http://host.docker.internal:3003/health"
+    module  = "http_2xx"
+    labels = {
+      "service" = "nullclaw-limit-probe",
+      "stack"   = "aquarium-nullclaw-runtimes",
+    }
+  }
+
+  target {
+    name    = "litellm"
+    address = "http://host.docker.internal:14000/health/liveliness"
+    module  = "http_2xx"
+    labels = {
+      "service" = "litellm",
+      "stack"   = "aquarium-litellm",
+    }
+  }
+
+  target {
+    name    = "infisical"
+    address = "http://host.docker.internal:18080/api/status"
+    module  = "http_2xx"
+    labels = {
+      "service" = "infisical",
+      "stack"   = "aquarium-infisical",
+    }
+  }
+
+  target {
+    name    = "grafana"
+    address = "http://host.docker.internal:13000/api/health"
+    module  = "http_2xx"
+    labels = {
+      "service" = "grafana",
+      "stack"   = "aquarium-monitoring",
+    }
+  }
+
+  target {
+    name    = "loki"
+    address = "http://host.docker.internal:13100/ready"
+    module  = "http_2xx"
+    labels = {
+      "service" = "loki",
+      "stack"   = "aquarium-monitoring",
+    }
+  }
+
+  target {
+    name    = "tempo"
+    address = "http://host.docker.internal:13200/ready"
+    module  = "http_2xx"
+    labels = {
+      "service" = "tempo",
+      "stack"   = "aquarium-monitoring",
+    }
+  }
+
+  target {
+    name    = "mimir"
+    address = "http://host.docker.internal:13300/ready"
+    module  = "http_2xx"
+    labels = {
+      "service" = "mimir",
+      "stack"   = "aquarium-monitoring",
+    }
+  }
+
+  target {
+    name    = "alloy"
+    address = "http://host.docker.internal:12345/"
+    module  = "http_2xx"
+    labels = {
+      "service" = "alloy",
+      "stack"   = "aquarium-monitoring",
+    }
+  }
+}
+
+discovery.relabel "blackbox" {
+  targets = prometheus.exporter.blackbox.health.targets
+
+  rule {
+    source_labels = ["__param_target"]
+    target_label  = "instance"
+  }
+}
+
+prometheus.scrape "blackbox" {
+  targets         = discovery.relabel.blackbox.output
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.mimir.receiver]
+}

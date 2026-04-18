@@ -1,0 +1,128 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+{% if not baseline_ready %}
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="backfill"><button class="op-button primary" type="submit">Rebuild Baseline</button></form>
+{% endif %}
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-grid">
+  <article class="op-card">
+    <h2>Model Catalog</h2>
+    {% if models %}
+    <table class="op-table">
+      <thead>
+        <tr>
+          <th>Alias</th>
+          <th>Provider Model</th>
+          <th>Provider</th>
+          <th>State</th>
+          <th>Dependencies</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for model in models %}
+        <tr>
+          <td>
+            <strong>{{ model.alias }}</strong><br>
+            <span class="op-note">{{ model.display_name }}</span>
+          </td>
+          <td>{{ model.provider_model }}</td>
+          <td>{{ model.provider_connection|default:"-" }}</td>
+          <td>
+            <div class="op-inline-actions">
+              <span class="op-badge {% if model.is_enabled %}ok{% else %}warn{% endif %}">{% if model.is_enabled %}enabled{% else %}disabled{% endif %}</span>
+              {% if model.is_platform_default %}<span class="op-badge neutral">platform default</span>{% endif %}
+            </div>
+          </td>
+          <td>
+            {% for key, deps in model_dependencies.items %}
+              {% if key == model.pk %}
+                {% if deps %}
+                  {{ deps|join:", " }}
+                {% else %}
+                  <span class="op-note">none</span>
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          </td>
+          <td>
+            <div class="op-inline-actions">
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle"><input type="hidden" name="model_id" value="{{ model.pk }}"><input type="hidden" name="enabled" value="{% if model.is_enabled %}0{% else %}1{% endif %}"><button class="op-button secondary" type="submit">{% if model.is_enabled %}Disable{% else %}Enable{% endif %}</button></form>
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="model_id" value="{{ model.pk }}"><button class="op-button danger" type="submit">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="op-empty">No provider models yet. Rebuild the baseline or add a custom alias.</div>
+    {% endif %}
+  </article>
+
+  <article class="op-card">
+    <h2>{% if selected_model %}Edit Model Alias{% else %}Create Model Alias{% endif %}</h2>
+    {% if models %}
+    <form method="get" class="op-form">
+      <div class="op-field">
+        <label for="edit_model">Load Existing Model</label>
+        <select id="edit_model" name="edit">
+          <option value="">Create new model</option>
+          {% for item in models %}
+          <option value="{{ item.pk }}" {% if selected_model and selected_model.pk == item.pk %}selected{% endif %}>{{ item.alias }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="op-actions">
+        <button class="op-button secondary" type="submit">Load Selection</button>
+        {% if selected_model %}<a href="/admin/models/" class="op-button secondary">Clear</a>{% endif %}
+      </div>
+    </form>
+    {% endif %}
+    <form method="post" class="op-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      <input type="hidden" name="model_id" value="{{ model_form.model_id }}">
+      <div class="op-form-grid">
+        <div class="op-field">
+          <label for="alias">Alias</label>
+          {% if selected_model %}
+          <input id="alias" type="text" name="alias" value="{{ model_form.alias }}" readonly>
+          {% else %}
+          <input id="alias" type="text" name="alias" value="{{ model_form.alias }}" required>
+          {% endif %}
+        </div>
+        <div class="op-field">
+          <label for="display_name">Display Name</label>
+          <input id="display_name" type="text" name="display_name" value="{{ model_form.display_name }}">
+        </div>
+        <div class="op-field">
+          <label for="provider_model">Provider Model</label>
+          <input id="provider_model" type="text" name="provider_model" value="{{ model_form.provider_model }}" required>
+        </div>
+        <div class="op-field">
+          <label for="provider_connection_id">Provider Connection</label>
+          <select id="provider_connection_id" name="provider_connection_id">
+            <option value="">-</option>
+            {% for provider in providers %}
+            <option value="{{ provider.pk }}" {% if model_form.provider_connection_id == provider.pk %}selected{% endif %}>{{ provider.display_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="op-field">
+          <label for="tenant">Tenant</label>
+          <input id="tenant" type="text" name="tenant" value="{{ model_form.tenant }}">
+        </div>
+      </div>
+      <label class="op-checkbox"><input type="checkbox" name="is_platform_default" value="1" {% if model_form.is_platform_default %}checked{% endif %}> Platform default</label>
+      <div class="op-actions">
+        <button class="op-button primary" type="submit">{% if selected_model %}Update Model{% else %}Create Model{% endif %}</button>
+        {% if selected_model %}<a href="/admin/models/" class="op-button secondary">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </article>
+</section>
+{% endblock %}

@@ -49,16 +49,20 @@ WORKSPACE_DIR="$DATA_DIR/workspace"
 
 mkdir -p "$DATA_DIR" "$WORKSPACE_DIR"
 
-require_var OPENROUTER_API_KEY
+require_var LITELLM_API_KEY
+require_var LITELLM_BASE_URL
 
-NULLCLAW_MODEL=${NULLCLAW_MODEL:-openrouter/qwen/qwen3.6-plus}
+NULLCLAW_MODEL=${NULLCLAW_MODEL:-openai/qwen/qwen3.6-plus}
+NULLCLAW_PROVIDER="custom:${LITELLM_BASE_URL}"
 NULLCLAW_GATEWAY_PORT=${NULLCLAW_GATEWAY_PORT:-3000}
 NULLCLAW_GATEWAY_HOST=${NULLCLAW_GATEWAY_HOST:-127.0.0.1}
 NULLCLAW_REQUIRE_PAIRING=$(bool_or_default "${NULLCLAW_REQUIRE_PAIRING-}" true)
 NULLCLAW_ENABLE_TELEGRAM=$(bool_or_default "${NULLCLAW_ENABLE_TELEGRAM-}" true)
+NULLCLAW_ENABLE_SLACK=$(bool_or_default "${NULLCLAW_ENABLE_SLACK-}" false)
+NULLCLAW_ENABLE_MATTERMOST=$(bool_or_default "${NULLCLAW_ENABLE_MATTERMOST-}" false)
 NULLCLAW_AUTONOMY_LEVEL=${NULLCLAW_AUTONOMY_LEVEL:-supervised}
 NULLCLAW_WORKSPACE_ONLY=$(bool_or_default "${NULLCLAW_WORKSPACE_ONLY-}" true)
-NULLCLAW_MAX_ACTIONS_PER_HOUR=${NULLCLAW_MAX_ACTIONS_PER_HOUR:-20}
+NULLCLAW_MAX_ACTIONS_PER_HOUR=${NULLCLAW_MAX_ACTIONS_PER_HOUR:-1000000}
 
 NULLCLAW_LOG_TOOL_CALLS=$(bool_or_default "${NULLCLAW_LOG_TOOL_CALLS-}" true)
 NULLCLAW_LOG_MESSAGE_RECEIPTS=$(bool_or_default "${NULLCLAW_LOG_MESSAGE_RECEIPTS-}" true)
@@ -69,20 +73,19 @@ NULLCLAW_TOKEN_USAGE_LEDGER_ENABLED=$(bool_or_default "${NULLCLAW_TOKEN_USAGE_LE
 NULLCLAW_OTEL_ENABLED=$(bool_or_default "${NULLCLAW_OTEL_ENABLED-}" false)
 NULLCLAW_OTEL_ENDPOINT=${NULLCLAW_OTEL_ENDPOINT-}
 NULLCLAW_OTEL_SERVICE_NAME=${NULLCLAW_OTEL_SERVICE_NAME:-nullclaw-local}
+NULLCLAW_HTTP_ENABLED=$(bool_or_default "${NULLCLAW_HTTP_ENABLED-}" false)
+NULLCLAW_SEARCH_PROVIDER=${NULLCLAW_SEARCH_PROVIDER-auto}
+NULLCLAW_SEARCH_BASE_URL=${NULLCLAW_SEARCH_BASE_URL-}
 
-CHANNELS_BLOCK='
-  "channels": {
-    "cli": true
-  },
-'
+CHANNEL_ITEMS='
+    "cli": true'
 
 if [ "$NULLCLAW_ENABLE_TELEGRAM" = "true" ]; then
   require_var TELEGRAM_BOT_TOKEN
   require_var TELEGRAM_ALLOW_FROM
-  CHANNELS_BLOCK=$(
+  CHANNEL_ITEMS=$CHANNEL_ITEMS$(
     cat <<EOF
-  "channels": {
-    "cli": true,
+,
     "telegram": {
       "accounts": {
         "main": {
@@ -95,10 +98,57 @@ if [ "$NULLCLAW_ENABLE_TELEGRAM" = "true" ]; then
         }
       }
     }
-  },
 EOF
   )
 fi
+
+if [ "$NULLCLAW_ENABLE_SLACK" = "true" ]; then
+  require_var SLACK_BOT_TOKEN
+  require_var SLACK_APP_TOKEN
+  require_var SLACK_SIGNING_SECRET
+  SLACK_WEBHOOK_PATH=${SLACK_WEBHOOK_PATH:-/slack/events}
+  CHANNEL_ITEMS=$CHANNEL_ITEMS$(
+    cat <<EOF
+,
+    "slack": {
+      "accounts": {
+        "main": {
+          "bot_token": "$(json_escape "$SLACK_BOT_TOKEN")",
+          "app_token": "$(json_escape "$SLACK_APP_TOKEN")",
+          "signing_secret": "$(json_escape "$SLACK_SIGNING_SECRET")",
+          "webhook_path": "$(json_escape "$SLACK_WEBHOOK_PATH")"
+        }
+      }
+    }
+EOF
+  )
+fi
+
+if [ "$NULLCLAW_ENABLE_MATTERMOST" = "true" ]; then
+  require_var MATTERMOST_BOT_TOKEN
+  require_var MATTERMOST_BASE_URL
+  CHANNEL_ITEMS=$CHANNEL_ITEMS$(
+    cat <<EOF
+,
+    "mattermost": {
+      "accounts": {
+        "main": {
+          "bot_token": "$(json_escape "$MATTERMOST_BOT_TOKEN")",
+          "base_url": "$(json_escape "$MATTERMOST_BASE_URL")"
+        }
+      }
+    }
+EOF
+  )
+fi
+
+CHANNELS_BLOCK=$(
+  cat <<EOF
+  "channels": {
+$CHANNEL_ITEMS
+  },
+EOF
+)
 
 DIAGNOSTICS_BLOCK=$(
   cat <<EOF
@@ -132,18 +182,41 @@ EOF
   )
 fi
 
+HTTP_REQUEST_BLOCK=$(
+  cat <<EOF
+  "http_request": {
+    "enabled": $NULLCLAW_HTTP_ENABLED,
+    "search_provider": "$(json_escape "$NULLCLAW_SEARCH_PROVIDER")"
+  }
+EOF
+)
+
+if [ -n "$NULLCLAW_SEARCH_BASE_URL" ]; then
+  HTTP_REQUEST_BLOCK=$(
+    cat <<EOF
+  "http_request": {
+    "enabled": $NULLCLAW_HTTP_ENABLED,
+    "search_provider": "$(json_escape "$NULLCLAW_SEARCH_PROVIDER")",
+    "search_base_url": "$(json_escape "$NULLCLAW_SEARCH_BASE_URL")"
+  }
+EOF
+  )
+fi
+
 cat >"$CONFIG_PATH" <<EOF
 {
   "models": {
     "providers": {
-      "openrouter": {
-        "api_key": "$(json_escape "$OPENROUTER_API_KEY")"
+      "$(json_escape "$NULLCLAW_PROVIDER")": {
+        "api_key": "$(json_escape "$LITELLM_API_KEY")",
+        "api_mode": "chat_completions"
       }
     }
   },
   "agents": {
     "defaults": {
       "model": {
+        "provider": "$(json_escape "$NULLCLAW_PROVIDER")",
         "primary": "$(json_escape "$NULLCLAW_MODEL")"
       }
     }
@@ -172,9 +245,7 @@ $DIAGNOSTICS_BLOCK
       "enabled": true
     }
   },
-  "http_request": {
-    "enabled": false
-  }
+$HTTP_REQUEST_BLOCK
 }
 EOF
 

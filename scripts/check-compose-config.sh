@@ -9,7 +9,9 @@ ROOT_DIR=$(
 for stack_dir in \
   "$ROOT_DIR/nullclaw-stack" \
   "$ROOT_DIR/nullclaw-probe-stack" \
-  "$ROOT_DIR/infisical-stack"; do
+  "$ROOT_DIR/infisical-stack" \
+  "$ROOT_DIR/litellm-stack" \
+  "$ROOT_DIR/monitoring-stack"; do
   docker compose -f "$stack_dir/docker-compose.yml" config >/dev/null
   echo "docker compose config is valid: $stack_dir/docker-compose.yml"
 done

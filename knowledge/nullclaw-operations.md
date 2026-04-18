@@ -2,20 +2,23 @@
 
 ## Primary Stack Layout
 
-This project now operates two primary layers:
+This project now operates four active layers:
 
 - runtime plane: `aquarium-nullclaw-runtimes`
 - secrets backend: `aquarium-infisical`
+- LLM gateway: `aquarium-litellm`
+- monitoring plane: `aquarium-monitoring`
 
 Tracked control-plane code:
 
-- orchestrator CLI: [orchestrator/cli.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/cli.py)
+- CLI: [orchestrator/cli.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/cli.py)
 - compose generator: [orchestrator/compose.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/compose.py)
 - Infisical integration: [orchestrator/infisical.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/infisical.py)
+- LiteLLM helpers: [orchestrator/litellm.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/litellm.py)
 
-Legacy/manual stack files still exist, but they are no longer the primary operational path.
+Legacy/manual stack files still exist, but they are not the primary operational path.
 
-## First-Time Setup
+## First-Time Setup Order
 
 High-level order:
 
@@ -23,10 +26,12 @@ High-level order:
 2. start `aquarium-infisical`
 3. create the first Infisical admin and log in locally
 4. initialize the orchestrator
-5. create `test-nullclaw`
-6. create `probe`
-
-Project root helpers live in [Makefile](/Users/ilyagmirin/PycharmProjects/aquarium/Makefile).
+5. bootstrap LiteLLM core secrets
+6. start `aquarium-litellm`
+7. bootstrap `aquarium-monitoring`
+8. create `test-nullclaw`
+9. create `probe`
+10. create `limit-probe`
 
 ## Start Infisical
 
@@ -37,13 +42,33 @@ make infisical-up
 make infisical-health
 ```
 
-Expected health endpoint:
+Expected:
 
 ```bash
 curl http://127.0.0.1:18080/api/status
 ```
 
-The UI/API is intentionally loopback-only.
+## Bootstrap And Start LiteLLM
+
+Bootstrap the core project:
+
+```bash
+OPENROUTER_API_KEY=... \
+.venv/bin/orchestrator litellm bootstrap
+```
+
+Start the stack:
+
+```bash
+make litellm-up
+make litellm-status
+```
+
+Expected URLs:
+
+- `http://127.0.0.1:14000/`
+- `http://127.0.0.1:14000/ui/`
+- `http://127.0.0.1:14000/openapi.json`
 
 ## Initialize The Orchestrator
 
@@ -53,18 +78,34 @@ From the project root:
 .venv/bin/orchestrator init
 ```
 
-Or through the helper:
+Or via helper:
 
 ```bash
 make orchestrator-init
 ```
 
-## Create Or Update A Runtime
+## Bootstrap Monitoring
+
+From the project root:
+
+```bash
+make monitoring-bootstrap
+make monitoring-up
+make monitoring-health
+```
+
+Expected URLs:
+
+- `http://127.0.0.1:13000`
+- `http://127.0.0.1:13100/ready`
+- `http://127.0.0.1:13200/ready`
+- `http://127.0.0.1:13300/ready`
+
+## Create Or Update Runtimes
 
 Live runtime:
 
 ```bash
-OPENROUTER_API_KEY=... \
 TELEGRAM_BOT_TOKEN=... \
 TELEGRAM_ALLOW_FROM=373793732 \
 .venv/bin/orchestrator runtime create --id test-nullclaw --telegram --gateway-port 3000
@@ -73,8 +114,13 @@ TELEGRAM_ALLOW_FROM=373793732 \
 Probe runtime:
 
 ```bash
-OPENROUTER_API_KEY=probe-distinct-key \
 .venv/bin/orchestrator runtime create --id probe --no-telegram --gateway-port 3002
+```
+
+Limit runtime:
+
+```bash
+.venv/bin/orchestrator runtime create --id limit-probe --no-telegram --gateway-port 3003 --runtime-role limit-probe
 ```
 
 ## Day-To-Day Commands
@@ -102,9 +148,10 @@ Status:
 ```bash
 .venv/bin/orchestrator runtime status --id test-nullclaw
 .venv/bin/orchestrator runtime status --id probe
+.venv/bin/orchestrator runtime status --id limit-probe
 ```
 
-Delete one runtime without deleting the Infisical project:
+Delete one runtime without deleting its Infisical project:
 
 ```bash
 .venv/bin/orchestrator runtime delete --id probe
@@ -119,42 +166,72 @@ cd /Users/ilyagmirin/PycharmProjects/aquarium/infisical-stack
 docker compose logs -f backend
 ```
 
-Runtime-plane logs:
+LiteLLM logs:
+
+```bash
+cd /Users/ilyagmirin/PycharmProjects/aquarium/litellm-stack
+docker compose logs -f litellm
+```
+
+Runtime logs:
 
 ```bash
 docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml logs -f gateway-test-nullclaw
 docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml logs -f gateway-probe
+docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml logs -f gateway-limit-probe
+```
+
+Monitoring logs:
+
+```bash
+cd /Users/ilyagmirin/PycharmProjects/aquarium/monitoring-stack
+docker compose logs -f
 ```
 
 ## CLI Entry
 
-One-shot agent execution through the shared compose file:
+Live one-shot through LiteLLM:
 
 ```bash
-docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml run --rm agent-test-nullclaw agent -m "hello"
+docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml run --rm agent-test-nullclaw agent -m "Reply with LIVE-LITELLM-OK only"
 ```
 
-Probe CLI:
+Probe one-shot:
 
 ```bash
 docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml run --rm agent-probe agent -m "hello"
 ```
 
-## Safe Restart Procedure
-
-When a runtime secret changes in Infisical:
-
-1. update the secret in Infisical
-2. rerun `runtime create` with the new secret value or create a fresh service token
-3. restart only the affected runtime
-
-Example:
+Limit runtime one-shot:
 
 ```bash
-.venv/bin/orchestrator runtime up --id test-nullclaw
+docker compose -f /Users/ilyagmirin/PycharmProjects/aquarium/.aquarium/generated/aquarium-nullclaw-runtimes.compose.yml run --rm agent-limit-probe agent -m "hello"
 ```
 
-The runtime `config.json` is regenerated on every container start through the entrypoint flow, so manual regeneration is not the normal container path.
+## Safe Restart Procedure
+
+If you rotate:
+
+- Telegram credentials
+- a runtime LiteLLM key
+- LiteLLM core provider credentials
+
+restart only the affected layer.
+
+Typical runtime refresh:
+
+```bash
+.venv/bin/orchestrator runtime create --id test-nullclaw --telegram --gateway-port 3000
+```
+
+Typical LiteLLM core refresh:
+
+```bash
+OPENROUTER_API_KEY=... \
+.venv/bin/orchestrator litellm bootstrap
+cd /Users/ilyagmirin/PycharmProjects/aquarium/litellm-stack
+docker compose up -d
+```
 
 ## Isolation Check
 
@@ -164,14 +241,16 @@ Run:
 .venv/bin/orchestrator runtime probe-check --id probe --target test-nullclaw
 ```
 
-Expected result:
+Expected:
 
-- probe runtime can access only its own project secret
+- `probe` can read only its own LiteLLM key
+- `test-nullclaw` can read only its own LiteLLM key
 - cross-project read is rejected
 
 ## Operational Notes
 
 - `test-nullclaw` is the production-like local runtime
-- `probe` exists to verify isolation and to keep a second instance in the same shared compose plane
+- `probe` exists to verify secret isolation
+- `limit-probe` exists to verify budget and RPM enforcement behavior
+- when monitoring bootstrap exists, NullClaw diagnostics move onto OTEL and traces go to Tempo
 - service lifecycle is now owned by the Python orchestrator
-- any future control-plane/UI change that affects lifecycle, status, restart, or rotation must update this document

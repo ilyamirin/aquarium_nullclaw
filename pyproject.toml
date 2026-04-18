@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Local control plane for hosted NullClaw runtimes."
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "django>=6.0,<6.1",
+  "django-unfold>=0.90,<1",
   "PyYAML>=6.0",
   "pydantic>=2.13,<3",
   "requests>=2.33,<3",
@@ -17,6 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=9,<10",
+  "pytest-django>=4.12,<5",
 ]
 
 [project.scripts]
@@ -25,6 +28,7 @@ orchestrator = "orchestrator.cli:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+DJANGO_SETTINGS_MODULE = "controlplane.core.settings"
 
 [tool.setuptools.packages.find]
-include = ["orchestrator*"]
+include = ["orchestrator*", "controlplane*"]

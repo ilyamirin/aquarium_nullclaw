@@ -1,0 +1,292 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+<a href="/admin/runtimes/{{ runtime.runtime_id }}/diagnostics/" class="op-button secondary">Diagnostics</a>
+<a href="/admin/runtimes/{{ runtime.runtime_id }}/chat/" class="op-button secondary">Chat</a>
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-stat-grid">
+  <article class="op-stat">
+    <div class="op-stat-label">Runtime</div>
+    <div class="op-stat-value">{{ runtime.runtime_id }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Health</div>
+    <div class="op-stat-value">{{ detail.overview.health_status }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Lifecycle</div>
+    <div class="op-stat-value">{{ detail.overview.lifecycle_status }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Model</div>
+    <div class="op-stat-value op-stat-value-small">{{ detail.overview.model }}</div>
+  </article>
+</section>
+
+<section class="op-grid cols-2">
+  <article class="op-card">
+    <h2>Overview</h2>
+    <dl class="op-meta">
+      <div class="op-meta-row"><dt>Role</dt><dd>{{ detail.overview.runtime_profile }}</dd></div>
+      <div class="op-meta-row"><dt>Tenant</dt><dd>{{ detail.overview.tenant|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Plan</dt><dd>{{ detail.overview.plan|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Gateway Port</dt><dd>{{ detail.overview.gateway_port }}</dd></div>
+      <div class="op-meta-row"><dt>Provider</dt><dd>{{ detail.default_provider_connection|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Model Alias</dt><dd>{{ detail.default_provider_model|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Last Action</dt><dd>{{ detail.overview.last_action_at|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Last Healthcheck</dt><dd>{{ detail.overview.last_healthcheck_at|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Last Error</dt><dd>{{ detail.overview.last_error|default:"-" }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="op-card">
+    <h2>Lifecycle</h2>
+    <p class="op-note">Все destructive и operational actions остаются внутри operator flow.</p>
+    <div class="op-actions">
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="op-button primary" type="submit">Start</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="stop"><button class="op-button secondary" type="submit">Stop</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="restart"><button class="op-button secondary" type="submit">Restart</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="recreate"><button class="op-button secondary" type="submit">Recreate</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="smoke_test"><button class="op-button secondary" type="submit">Smoke Test</button></form>
+    </div>
+    <form method="post" class="op-form op-stack-top">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete_runtime">
+      <div class="op-field">
+        <label for="confirm_runtime_id">Type <code>{{ runtime.runtime_id }}</code> to confirm deletion</label>
+        <input id="confirm_runtime_id" type="text" name="confirm_runtime_id" placeholder="{{ runtime.runtime_id }}">
+      </div>
+      <div class="op-actions">
+        <button class="op-button danger" type="submit">Delete Runtime</button>
+      </div>
+    </form>
+  </article>
+</section>
+
+<section class="op-grid cols-2">
+  <article class="op-card">
+    <h2>Limits &amp; Keys</h2>
+    <p class="op-note">Budget, RPM and TPM are enforced in LiteLLM. Saving here applies the LiteLLM key update immediately; changing model alias also recreates the runtime.</p>
+    <form method="post" class="op-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_limits">
+      <div class="op-form-grid">
+        <div class="op-field">
+          <label for="budget_usd">LiteLLM Budget (USD)</label>
+          <input id="budget_usd" type="text" name="budget_usd" value="{{ detail.limits.budget_usd|default:'' }}">
+        </div>
+        <div class="op-field">
+          <label for="model">Model Alias</label>
+          <input id="model" type="text" name="model" value="{{ detail.limits.model }}">
+        </div>
+        <div class="op-field">
+          <label for="rpm_limit">LiteLLM RPM Limit</label>
+          <input id="rpm_limit" type="text" name="rpm_limit" value="{{ detail.limits.rpm_limit|default:'' }}">
+        </div>
+        <div class="op-field">
+          <label for="tpm_limit">LiteLLM TPM Limit</label>
+          <input id="tpm_limit" type="text" name="tpm_limit" value="{{ detail.limits.tpm_limit|default:'' }}">
+        </div>
+      </div>
+      <div class="op-actions">
+        <button class="op-button primary" type="submit">Apply LiteLLM Limits</button>
+      </div>
+    </form>
+    <form method="post" class="op-actions op-stack-top">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="sync_limits">
+      <button class="op-button secondary" type="submit">Repair LiteLLM Sync</button>
+    </form>
+    <div class="op-card op-card-compact op-stack-top">
+      <h3>LiteLLM Key</h3>
+      <div class="op-pre">{% if detail.key.error %}{{ detail.key.error }}{% else %}{{ detail.key|pprint }}{% endif %}</div>
+      <div class="op-actions op-stack-top">
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="rotate_key"><button class="op-button secondary" type="submit">Rotate Key</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke_key"><button class="op-button danger" type="submit">Revoke Key</button></form>
+      </div>
+    </div>
+  </article>
+
+  <article class="op-card op-anchor" id="integrations">
+    <h2>Channels &amp; Integrations</h2>
+    {% if detail.integrations %}
+    <table class="op-table">
+      <thead>
+        <tr>
+          <th>Integration</th>
+          <th>Status</th>
+          <th>Secrets</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for integration in detail.integrations %}
+        <tr>
+          <td>
+            <strong>{{ integration.display_name|default:integration.name }}</strong><br>
+            <span class="op-note">{{ integration.integration_type }}</span>
+          </td>
+          <td>
+            <span class="op-badge {% if integration.status == 'verified' %}ok{% elif integration.status == 'error' %}error{% elif integration.status == 'disabled' %}warn{% else %}neutral{% endif %}">
+              {{ integration.status }}
+            </span>
+          </td>
+          <td>{{ integration.secret_count }}</td>
+          <td>
+            <div class="op-inline-actions">
+              <a href="?edit_integration={{ integration.id }}#integrations" class="op-button secondary">Edit</a>
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="test_integration"><input type="hidden" name="connection_id" value="{{ integration.id }}"><button class="op-button secondary" type="submit">Test</button></form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="op-empty">No runtime integrations configured yet.</div>
+    {% endif %}
+
+    <form method="post" class="op-form op-stack-top">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_integration">
+      <input type="hidden" name="connection_id" value="{{ integration_form.connection_id }}">
+      <div class="op-form-grid">
+        <div class="op-field">
+          <label for="integration_type">Integration Type</label>
+          <select id="integration_type" name="integration_type">
+            {% with selected=integration_form.integration_type %}
+            <option value="telegram" {% if selected == "telegram" %}selected{% endif %}>telegram</option>
+            <option value="slack" {% if selected == "slack" %}selected{% endif %}>slack</option>
+            <option value="mattermost" {% if selected == "mattermost" %}selected{% endif %}>mattermost</option>
+            <option value="search" {% if selected == "search" %}selected{% endif %}>search</option>
+            {% endwith %}
+          </select>
+        </div>
+        <div class="op-field">
+          <label for="display_name">Display Name</label>
+          <input id="display_name" type="text" name="display_name" value="{{ integration_form.display_name }}">
+        </div>
+        <div class="op-field">
+          <label for="allow_from">Telegram Allow From</label>
+          <input id="allow_from" type="text" name="allow_from" value="{{ integration_form.allow_from }}">
+        </div>
+        <div class="op-field">
+          <label for="search_provider">Search Provider</label>
+          <input id="search_provider" type="text" name="search_provider" value="{{ integration_form.search_provider }}">
+        </div>
+        <div class="op-field">
+          <label for="search_base_url">Search Base URL</label>
+          <input id="search_base_url" type="text" name="search_base_url" value="{{ integration_form.search_base_url }}">
+        </div>
+      </div>
+      <label class="op-checkbox"><input type="checkbox" name="enabled" value="1" {% if integration_form.enabled %}checked{% endif %}> Enabled</label>
+      <div class="op-actions">
+        <button class="op-button primary" type="submit">{% if selected_integration %}Update Integration{% else %}Create Integration{% endif %}</button>
+        {% if selected_integration %}<a href="/admin/runtimes/{{ runtime.runtime_id }}/#integrations" class="op-button secondary">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </article>
+</section>
+
+<section class="op-grid cols-2">
+  <article class="op-card op-anchor" id="secrets">
+    <h2>Secrets</h2>
+    {% if detail.secrets %}
+    <table class="op-table">
+      <thead>
+        <tr>
+          <th>Kind</th>
+          <th>Masked Label</th>
+          <th>Dependency</th>
+          <th>Verified</th>
+          <th>Error</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for secret in detail.secrets %}
+        <tr>
+          <td>{{ secret.secret_kind }}</td>
+          <td>{{ secret.masked_label }}</td>
+          <td>{{ secret.integration_connection|default:secret.provider_connection|default:"runtime" }}</td>
+          <td>{{ secret.last_verified_at|default:"-" }}</td>
+          <td>{{ secret.last_error|default:"-" }}</td>
+          <td>
+            <div class="op-inline-actions">
+              <a href="?edit_secret={{ secret.id }}#secrets" class="op-button secondary">Edit</a>
+              {% if not secret.managed_by_system %}
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="test_secret"><input type="hidden" name="secret_ref_id" value="{{ secret.id }}"><button class="op-button secondary" type="submit">Test</button></form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="op-empty">No runtime or integration secrets registered for this runtime.</div>
+    {% endif %}
+
+    <form method="post" class="op-form op-stack-top">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_secret">
+      <div class="op-form-grid">
+        <div class="op-field">
+          <label for="secret_kind">Secret Kind</label>
+          <select id="secret_kind" name="secret_kind">
+            {% with selected=secret_form.secret_kind %}
+            <option value="telegram_bot_token" {% if selected == "telegram_bot_token" %}selected{% endif %}>telegram_bot_token</option>
+            <option value="telegram_allow_from" {% if selected == "telegram_allow_from" %}selected{% endif %}>telegram_allow_from</option>
+            <option value="slack_bot_token" {% if selected == "slack_bot_token" %}selected{% endif %}>slack_bot_token</option>
+            <option value="slack_app_token" {% if selected == "slack_app_token" %}selected{% endif %}>slack_app_token</option>
+            <option value="slack_signing_secret" {% if selected == "slack_signing_secret" %}selected{% endif %}>slack_signing_secret</option>
+            <option value="mattermost_bot_token" {% if selected == "mattermost_bot_token" %}selected{% endif %}>mattermost_bot_token</option>
+            <option value="search_api_key" {% if selected == "search_api_key" %}selected{% endif %}>search_api_key</option>
+            {% endwith %}
+          </select>
+        </div>
+        <div class="op-field">
+          <label for="secret_value">New Value</label>
+          <input id="secret_value" type="password" name="secret_value" required>
+        </div>
+      </div>
+      <p class="op-note">Secrets stay write-only masked. This form never reveals the stored value back to the operator UI.</p>
+      <div class="op-actions">
+        <button class="op-button primary" type="submit">Save Secret</button>
+        {% if selected_secret %}<a href="/admin/runtimes/{{ runtime.runtime_id }}/#secrets" class="op-button secondary">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </article>
+
+  <article class="op-card">
+    <h2>Diagnostics Summary</h2>
+    <dl class="op-meta">
+      <div class="op-meta-row"><dt>Config Valid</dt><dd>{{ detail.diagnostics.config.valid }}</dd></div>
+      <div class="op-meta-row"><dt>Secret Failures</dt><dd>{{ detail.diagnostics.secrets.failed|length }}</dd></div>
+      <div class="op-meta-row"><dt>Provider Error</dt><dd>{{ detail.diagnostics.provider_error|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Latest Failure</dt><dd>{{ detail.diagnostics.last_failure.action|default:"-" }} {{ detail.diagnostics.last_failure.message|default:"" }}</dd></div>
+      <div class="op-meta-row"><dt>Metric State</dt><dd>{{ detail.diagnostics.metrics.summary.status }} / {{ detail.diagnostics.metrics.summary.value|default:"-" }}</dd></div>
+    </dl>
+    <div class="op-actions op-stack-top">
+      <a href="{{ detail.diagnostics.links.grafana }}" class="op-button secondary" target="_blank" rel="noreferrer">Grafana</a>
+      <a href="{{ detail.diagnostics.links.loki }}" class="op-button secondary" target="_blank" rel="noreferrer">Loki</a>
+      <a href="{{ detail.diagnostics.links.tempo }}" class="op-button secondary" target="_blank" rel="noreferrer">Tempo</a>
+      <a href="{{ detail.diagnostics.links.mimir }}" class="op-button secondary" target="_blank" rel="noreferrer">Mimir</a>
+    </div>
+    <div class="op-card op-card-compact op-stack-top">
+      <h3>Recent Actions</h3>
+      {% if detail.recent_actions %}
+      <ul class="op-list-compact">
+        {% for action in detail.recent_actions %}
+        <li>{{ action.created_at }} — {{ action.action }} — {{ action.status }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="op-empty">No recent actions.</div>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

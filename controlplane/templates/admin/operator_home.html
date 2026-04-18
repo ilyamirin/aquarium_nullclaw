@@ -1,0 +1,134 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+<a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Open Grafana</a>
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-stat-grid">
+  <article class="op-stat">
+    <div class="op-stat-label">Runtimes</div>
+    <div class="op-stat-value">{{ runtime_count }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Unhealthy</div>
+    <div class="op-stat-value">{{ unhealthy_count }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Recent Actions</div>
+    <div class="op-stat-value">{{ recent_actions|length }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Monitoring</div>
+    <div class="op-stat-value">Live</div>
+  </article>
+</section>
+
+<section class="op-grid cols-3">
+  <article class="op-card">
+    <h2>Runtime Operations</h2>
+    <p class="op-note">Create new runtimes, review existing ones and jump straight into lifecycle, diagnostics or chat.</p>
+    <div class="op-actions">
+      <a href="/admin/runtime-wizard/" class="op-button primary">Open Runtime Wizard</a>
+    </div>
+  </article>
+  <article class="op-card">
+    <h2>Configuration</h2>
+    <p class="op-note">Manage provider connections, model aliases, integrations and secret references from the same operator surface.</p>
+    <div class="op-actions">
+      <a href="/admin/providers/" class="op-button secondary">Providers</a>
+      <a href="/admin/models/" class="op-button secondary">Models</a>
+      <a href="/admin/integrations/" class="op-button secondary">Integrations</a>
+      <a href="/admin/secrets/" class="op-button secondary">Secrets</a>
+    </div>
+  </article>
+  <article class="op-card">
+    <h2>Observability</h2>
+    <p class="op-note">Control plane summaries stay here. Deep traces, logs and metrics stay in the monitoring stack.</p>
+    <div class="op-actions">
+      <a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Grafana</a>
+    </div>
+  </article>
+</section>
+
+<section class="op-card">
+  <h2>Runtime Inventory</h2>
+  {% if runtime_details %}
+  <table class="op-table">
+    <thead>
+      <tr>
+        <th>Runtime</th>
+        <th>Role</th>
+        <th>Health</th>
+        <th>Lifecycle</th>
+        <th>Model</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for detail in runtime_details %}
+      <tr>
+        <td>
+          <strong><a href="/admin/runtimes/{{ detail.overview.runtime_id }}/">{{ detail.overview.runtime_id }}</a></strong><br>
+          <span class="op-note">{{ detail.overview.tenant|default:"no-tenant" }} / {{ detail.overview.plan|default:"no-plan" }}</span>
+        </td>
+        <td>{{ detail.overview.runtime_profile }}</td>
+        <td>
+          <span class="op-badge {% if detail.overview.health_status == 'healthy' %}ok{% elif detail.overview.health_status == 'degraded' %}warn{% elif detail.overview.health_status == 'unknown' %}neutral{% else %}error{% endif %}">
+            {{ detail.overview.health_status }}
+          </span>
+        </td>
+        <td>
+          <span class="op-badge {% if detail.overview.lifecycle_status == 'running' %}ok{% elif detail.overview.lifecycle_status == 'created' or detail.overview.lifecycle_status == 'unknown' %}neutral{% elif detail.overview.lifecycle_status == 'stopped' %}warn{% else %}error{% endif %}">
+            {{ detail.overview.lifecycle_status }}
+          </span>
+        </td>
+        <td>{{ detail.overview.model }}</td>
+        <td>
+          <div class="op-inline-actions">
+            <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/" class="op-button secondary">Open</a>
+            <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/diagnostics/" class="op-button secondary">Diagnostics</a>
+            <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/chat/" class="op-button secondary">Chat</a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="op-empty">No runtimes yet. Start with the Runtime Wizard.</div>
+  {% endif %}
+</section>
+
+<section class="op-card">
+  <h2>Recent Actions</h2>
+  {% if recent_actions %}
+  <table class="op-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Action</th>
+        <th>Runtime</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for action in recent_actions %}
+      <tr>
+        <td>{{ action.created_at }}</td>
+        <td>{{ action.action }}</td>
+        <td>{% if action.runtime %}<a href="/admin/runtimes/{{ action.runtime.runtime_id }}/">{{ action.runtime.runtime_id }}</a>{% else %}global{% endif %}</td>
+        <td>
+          <span class="op-badge {% if action.status == 'verified' %}ok{% elif action.status == 'error' %}error{% elif action.status == 'configured' %}neutral{% else %}warn{% endif %}">
+            {{ action.status }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="op-empty">No operator actions logged yet.</div>
+  {% endif %}
+</section>
+{% endblock %}

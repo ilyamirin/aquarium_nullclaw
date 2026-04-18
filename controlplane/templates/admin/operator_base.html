@@ -1,0 +1,450 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}{{ title }} | Aquarium Control Plane{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .op-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .op-page-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .op-kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b6472;
+    font-weight: 700;
+  }
+
+  .op-title {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.15;
+    font-weight: 700;
+    color: #101828;
+  }
+
+  .op-subtitle {
+    margin: 0.5rem 0 0;
+    max-width: 72ch;
+    color: #475467;
+    line-height: 1.6;
+  }
+
+  .op-nav,
+  .op-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .op-nav a,
+  .op-subnav a {
+    padding: 0.65rem 0.95rem;
+    border-radius: 999px;
+    font-weight: 600;
+    color: #344054;
+    text-decoration: none;
+    background: #f8fafc;
+    border: 1px solid #d0d5dd;
+  }
+
+  .op-nav a.is-active,
+  .op-subnav a.is-active {
+    background: #111827;
+    color: #ffffff;
+    border-color: #111827;
+  }
+
+  .op-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .op-grid.cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .op-grid.cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .op-card {
+    background: #ffffff;
+    border: 1px solid #e4e7ec;
+    border-radius: 1rem;
+    padding: 1.15rem 1.2rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    min-width: 0;
+  }
+
+  .op-card h2,
+  .op-card h3 {
+    margin: 0 0 0.85rem;
+    color: #101828;
+  }
+
+  .op-card h2 {
+    font-size: 1.05rem;
+  }
+
+  .op-card h3 {
+    font-size: 0.95rem;
+  }
+
+  .op-card p:last-child,
+  .op-card ul:last-child,
+  .op-card table:last-child,
+  .op-card form:last-child {
+    margin-bottom: 0;
+  }
+
+  .op-card-compact {
+    padding: 0.95rem;
+  }
+
+  .op-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .op-stat {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e4e7ec;
+    border-radius: 1rem;
+    padding: 1rem 1.1rem;
+  }
+
+  .op-stat-label {
+    color: #667085;
+    font-size: 0.85rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .op-stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #101828;
+  }
+
+  .op-stat-value-small {
+    font-size: 1rem;
+  }
+
+  .op-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.94rem;
+    table-layout: fixed;
+  }
+
+  .op-table th,
+  .op-table td {
+    text-align: left;
+    padding: 0.85rem 0.75rem;
+    border-bottom: 1px solid #eaecf0;
+    vertical-align: top;
+    word-break: break-word;
+  }
+
+  .op-table th {
+    color: #667085;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .op-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .op-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .op-badge.ok {
+    color: #065f46;
+    background: #ecfdf3;
+    border-color: #abefc6;
+  }
+
+  .op-badge.warn {
+    color: #92400e;
+    background: #fffaeb;
+    border-color: #fedf89;
+  }
+
+  .op-badge.error {
+    color: #b42318;
+    background: #fef3f2;
+    border-color: #fecdca;
+  }
+
+  .op-badge.neutral {
+    color: #344054;
+    background: #f8fafc;
+    border-color: #d0d5dd;
+  }
+
+  .op-actions,
+  .op-inline-actions {
+    display: flex;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .op-actions.spread {
+    justify-content: space-between;
+  }
+
+  .op-button,
+  .op-button:visited {
+    appearance: none;
+    border: 1px solid #d0d5dd;
+    background: #ffffff;
+    color: #344054;
+    border-radius: 0.8rem;
+    padding: 0.7rem 0.95rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.65rem;
+  }
+
+  .op-button.primary {
+    background: #111827;
+    border-color: #111827;
+    color: #ffffff;
+  }
+
+  .op-button.secondary {
+    background: #f8fafc;
+  }
+
+  .op-button.danger {
+    background: #fff1f2;
+    border-color: #fecdd3;
+    color: #be123c;
+  }
+
+  .op-form {
+    display: grid;
+    gap: 0.95rem;
+  }
+
+  .op-form-grid {
+    display: grid;
+    gap: 0.95rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .op-field {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .op-field label,
+  .op-field legend {
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: #344054;
+  }
+
+  .op-field input,
+  .op-field select,
+  .op-field textarea {
+    width: 100%;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.8rem;
+    border: 1px solid #d0d5dd;
+    background: #ffffff;
+    color: #101828;
+    font: inherit;
+    box-sizing: border-box;
+  }
+
+  .op-field textarea {
+    min-height: 8rem;
+    resize: vertical;
+  }
+
+  .op-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+  }
+
+  .op-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: #344054;
+    font-weight: 600;
+  }
+
+  .op-list,
+  .op-list-compact {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #344054;
+  }
+
+  .op-list li + li,
+  .op-list-compact li + li {
+    margin-top: 0.35rem;
+  }
+
+  .op-list-compact {
+    padding-left: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .op-empty {
+    padding: 1rem;
+    border: 1px dashed #d0d5dd;
+    border-radius: 0.9rem;
+    color: #667085;
+    background: #fcfcfd;
+  }
+
+  .op-meta {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .op-meta-row {
+    display: grid;
+    grid-template-columns: minmax(9rem, 14rem) 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .op-meta-row dt {
+    color: #667085;
+    font-weight: 700;
+  }
+
+  .op-meta-row dd {
+    margin: 0;
+    color: #101828;
+  }
+
+  .op-note {
+    color: #667085;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .op-stack-top {
+    margin-top: 1rem;
+  }
+
+  .op-code,
+  .op-pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 0.8rem;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+  }
+
+  .op-pre {
+    white-space: pre-wrap;
+  }
+
+  .op-split {
+    display: grid;
+    grid-template-columns: minmax(18rem, 24rem) 1fr;
+    gap: 1rem;
+  }
+
+  .op-anchor {
+    scroll-margin-top: 1rem;
+  }
+
+  @media (max-width: 960px) {
+    .op-stat-grid,
+    .op-grid.cols-2,
+    .op-grid.cols-3,
+    .op-form-grid,
+    .op-split {
+      grid-template-columns: 1fr;
+    }
+
+    .op-meta-row {
+      grid-template-columns: 1fr;
+      gap: 0.35rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content_title %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+<div class="op-shell">
+  <div class="op-page-header">
+    <div>
+      <p class="op-kicker">Aquarium Control Plane</p>
+      <h1 class="op-title">{% block operator_title %}{{ title }}{% endblock %}</h1>
+      {% if page_description %}
+      <p class="op-subtitle">{{ page_description }}</p>
+      {% endif %}
+    </div>
+    <div class="op-actions">
+      {% block operator_header_actions %}{% endblock %}
+    </div>
+  </div>
+
+  <nav class="op-nav">
+    <a href="/admin/" class="{% if active_page == 'home' %}is-active{% endif %}">Overview</a>
+    <a href="/admin/runtime-wizard/" class="{% if active_page == 'runtime-wizard' %}is-active{% endif %}">Runtime Wizard</a>
+    <a href="/admin/providers/" class="{% if active_page == 'providers' %}is-active{% endif %}">Providers</a>
+    <a href="/admin/models/" class="{% if active_page == 'models' %}is-active{% endif %}">Models</a>
+    <a href="/admin/integrations/" class="{% if active_page == 'integrations' %}is-active{% endif %}">Integrations</a>
+    <a href="/admin/secrets/" class="{% if active_page == 'secrets' %}is-active{% endif %}">Secrets</a>
+  </nav>
+
+  {% if runtime_subnav %}
+  <nav class="op-subnav">
+    {% for item in runtime_subnav %}
+    <a href="{{ item.href }}" class="{% if item.active %}is-active{% endif %}">{{ item.label }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  {% block operator_body %}{% endblock %}
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+<a href="/admin/runtimes/{{ runtime.runtime_id }}/" class="op-button secondary">Back to Runtime</a>
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-split">
+  <article class="op-card">
+    <h2>Sessions</h2>
+    {% if sessions %}
+    <ul class="op-list">
+      {% for session in sessions %}
+      <li>
+        <a href="?session={{ session.pk }}">{{ session.title|default:session.pk }}</a><br>
+        <span class="op-note">{{ session.updated_at }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="op-empty">No chat sessions yet.</div>
+    {% endif %}
+
+    <form method="post" class="op-form op-stack-top">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create">
+      <div class="op-field">
+        <label for="title">New Session Title</label>
+        <input id="title" type="text" name="title" placeholder="Setup check">
+      </div>
+      <button class="op-button primary" type="submit">Create Session</button>
+    </form>
+  </article>
+
+  <article class="op-card">
+    {% if active_session %}
+    <h2>{{ active_session.title|default:active_session.pk }}</h2>
+    {% if messages %}
+    {% endif %}
+    <div class="op-grid">
+      <div class="op-card op-card-compact">
+        <h3>Conversation</h3>
+        {% if messages %}
+        <div class="op-grid">
+          {% for message in messages %}
+          <article class="op-card op-card-compact">
+            <div class="op-actions spread">
+              <strong>{{ message.role }}</strong>
+              <span class="op-note">{{ message.created_at }}</span>
+            </div>
+            <p>{{ message.content }}</p>
+            {% if message.metadata %}
+            <pre class="op-pre">{{ message.metadata|pprint }}</pre>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="op-empty">No messages yet.</div>
+        {% endif %}
+      </div>
+
+      <form method="post" class="op-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="send">
+        <div class="op-field">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" placeholder="Send a setup or debug prompt to this runtime"></textarea>
+        </div>
+        <div class="op-actions">
+          <button class="op-button primary" type="submit">Send</button>
+        </div>
+      </form>
+
+      <form method="post" class="op-actions">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reset">
+        <button class="op-button danger" type="submit">Reset Session</button>
+      </form>
+    </div>
+    {% else %}
+    <h2>Active Session</h2>
+    <div class="op-empty">Select a session or create a new one to start chatting with the runtime.</div>
+    {% endif %}
+  </article>
+</section>
+
+<section class="op-card">
+  <h2>Recent Trace Snippets</h2>
+  {% if trace_links %}
+  <ul class="op-list-compact">
+    {% for item in trace_links %}
+    <li>{{ item.trace_id }} — {{ item.root_name|default:"trace" }}{% if item.root_service %} — {{ item.root_service }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="op-empty">No recent traces linked to this runtime.</div>
+  {% endif %}
+</section>
+{% endblock %}

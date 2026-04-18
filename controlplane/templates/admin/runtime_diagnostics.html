@@ -1,0 +1,113 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+<a href="/admin/runtimes/{{ runtime.runtime_id }}/" class="op-button secondary">Back to Runtime</a>
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-stat-grid">
+  <article class="op-stat">
+    <div class="op-stat-label">Lifecycle</div>
+    <div class="op-stat-value">{{ diagnostics.health.lifecycle_status }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Health</div>
+    <div class="op-stat-value">{{ diagnostics.health.health_status }}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Config Valid</div>
+    <div class="op-stat-value">{% if diagnostics.config.valid %}yes{% else %}no{% endif %}</div>
+  </article>
+  <article class="op-stat">
+    <div class="op-stat-label">Metric Probe</div>
+    <div class="op-stat-value">{{ diagnostics.metrics.summary.status }}</div>
+  </article>
+</section>
+
+<section class="op-grid cols-2">
+  <article class="op-card">
+    <h2>Health Summary</h2>
+    <dl class="op-meta">
+      <div class="op-meta-row"><dt>Gateway Port</dt><dd>{{ diagnostics.health.gateway_port }}</dd></div>
+      <div class="op-meta-row">
+        <dt>Gateway Health</dt>
+        <dd>
+          {% if diagnostics.health.gateway_health.status_code %}
+            HTTP {{ diagnostics.health.gateway_health.status_code }}
+          {% elif diagnostics.health.gateway_health.error %}
+            {{ diagnostics.health.gateway_health.error }}
+          {% else %}
+            -
+          {% endif %}
+        </dd>
+      </div>
+      <div class="op-meta-row"><dt>Config Path</dt><dd>{{ diagnostics.config.path|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Config Error</dt><dd>{{ diagnostics.config.error|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Provider Error</dt><dd>{{ diagnostics.provider_error|default:"-" }}</dd></div>
+      <div class="op-meta-row"><dt>Last Failure</dt><dd>{{ diagnostics.last_failure.action|default:"-" }} {{ diagnostics.last_failure.message|default:"" }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="op-card">
+    <h2>Deep Links</h2>
+    <p class="op-note">Control plane aggregates summaries only. Use the monitoring stack for full inspection.</p>
+    <div class="op-actions">
+      <a href="{{ diagnostics.links.grafana }}" class="op-button secondary" target="_blank" rel="noreferrer">Grafana</a>
+      <a href="{{ diagnostics.links.loki }}" class="op-button secondary" target="_blank" rel="noreferrer">Loki</a>
+      <a href="{{ diagnostics.links.tempo }}" class="op-button secondary" target="_blank" rel="noreferrer">Tempo</a>
+      <a href="{{ diagnostics.links.mimir }}" class="op-button secondary" target="_blank" rel="noreferrer">Mimir</a>
+    </div>
+  </article>
+</section>
+
+<section class="op-grid cols-3">
+  <article class="op-card">
+    <h2>Secret Failures</h2>
+    {% if diagnostics.secrets.failed %}
+    <ul class="op-list">
+      {% for item in diagnostics.secrets.failed %}
+      <li>{{ item.name }} — {{ item.error|default:"failed" }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="op-empty">No secret failures detected.</div>
+    {% endif %}
+  </article>
+  <article class="op-card">
+    <h2>Recent Logs</h2>
+    {% if diagnostics.logs.error %}
+    <div class="op-empty">{{ diagnostics.logs.error }}</div>
+    {% elif diagnostics.logs.snippets %}
+    <ul class="op-list-compact">
+      {% for item in diagnostics.logs.snippets %}
+      <li>{{ item.line }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="op-empty">No log snippets available.</div>
+    {% endif %}
+  </article>
+  <article class="op-card">
+    <h2>Recent Traces</h2>
+    {% if diagnostics.traces.error %}
+    <div class="op-empty">{{ diagnostics.traces.error }}</div>
+    {% elif diagnostics.traces.items %}
+    <ul class="op-list-compact">
+      {% for item in diagnostics.traces.items %}
+      <li>{{ item.trace_id }} — {{ item.root_name|default:"trace" }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="op-empty">No recent traces.</div>
+    {% endif %}
+  </article>
+</section>
+
+<section class="op-card">
+  <h2>Raw Payloads</h2>
+  <details>
+    <summary>Expand raw monitoring payloads</summary>
+    <pre class="op-pre">{{ diagnostics.raw|pprint }}</pre>
+  </details>
+</section>
+{% endblock %}

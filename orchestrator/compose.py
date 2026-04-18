@@ -4,17 +4,24 @@ from pathlib import Path
 
 import yaml
 
+from orchestrator.infisical import read_env_file
 from orchestrator.models import RuntimeRecord, StateFile
-from orchestrator.paths import COMPOSE_FILE, COMPOSE_PROJECT_NAME, ROOT_DIR
+from orchestrator.paths import COMPOSE_FILE, COMPOSE_PROJECT_NAME, MONITORING_STACK_ENV_FILE, ROOT_DIR
 
 
 NULLCLAW_IMAGE_CONTEXT = str(ROOT_DIR)
 NULLCLAW_DOCKERFILE = str(ROOT_DIR / "docker" / "nullclaw-infisical.Dockerfile")
 SCRIPTS_DIR = str(ROOT_DIR / "scripts")
+MONITORING_NETWORK_NAME = "aquarium-monitoring"
+
+
+def _monitoring_network_enabled() -> bool:
+    values = read_env_file(MONITORING_STACK_ENV_FILE)
+    return bool(values.get("INFISICAL_PROJECT_ID") and values.get("INFISICAL_TOKEN"))
 
 
 def _base_service(runtime: RuntimeRecord) -> dict:
-    return {
+    service = {
         "build": {
             "context": NULLCLAW_IMAGE_CONTEXT,
             "dockerfile": NULLCLAW_DOCKERFILE,
@@ -31,6 +38,9 @@ def _base_service(runtime: RuntimeRecord) -> dict:
             f"{runtime.runtime_home}:/nullclaw-data",
         ],
     }
+    if _monitoring_network_enabled():
+        service["networks"] = ["default", "observability"]
+    return service
 
 
 def gateway_service(runtime: RuntimeRecord) -> dict:
@@ -63,7 +73,15 @@ def render_compose(state: StateFile) -> dict:
         runtime = state.runtimes[runtime_id]
         services[f"gateway-{runtime.id}"] = gateway_service(runtime)
         services[f"agent-{runtime.id}"] = agent_service(runtime)
-    return {"name": COMPOSE_PROJECT_NAME, "services": services}
+    payload = {"name": COMPOSE_PROJECT_NAME, "services": services}
+    if _monitoring_network_enabled():
+        payload["networks"] = {
+            "observability": {
+                "external": True,
+                "name": MONITORING_NETWORK_NAME,
+            }
+        }
+    return payload
 
 
 def write_compose(state: StateFile) -> Path:

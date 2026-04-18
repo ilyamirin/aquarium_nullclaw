@@ -10,6 +10,7 @@ This repository contains:
 - `orchestrator/` — the Python 3.12 control plane that owns runtime lifecycle, local state, compose generation, and Infisical integration
 - `.aquarium/` — ignored local runtime inventory, generated compose, service-token env files, and per-runtime state
 - `infisical-stack/` — local self-hosted Infisical deployment used as the secrets source-of-truth
+- `litellm-stack/` — internal LiteLLM gateway and UI/API plane that sits between NullClaw runtimes and model providers
 - `knowledge/` — the project knowledge base and operational source-of-truth
 - `nullclaw-stack/` and `nullclaw-probe-stack/` — legacy/manual wrapper artifacts kept for reference during the transition
 
@@ -17,6 +18,7 @@ Compose project names are part of the contract:
 
 - primary runtime plane: `aquarium-nullclaw-runtimes`
 - secrets backend: `aquarium-infisical`
+- LLM gateway: `aquarium-litellm`
 - legacy/manual stacks: `aquarium-nullclaw`, `aquarium-nullclaw-probe`
 
 The upstream `nullclaw/AGENTS.md` applies only when working inside `nullclaw/`.
@@ -106,8 +108,21 @@ Changes should support not only current manual operation, but also future UI-dri
 - runtime lifecycle
 - config management
 - secrets contract and per-instance secret isolation
+- LiteLLM key lifecycle, budgets, and provider routing
 - diagnostics and logs
 - health status
 - testing and rollout workflows
 
 When making changes, preserve clarity for that future platform layer.
+
+## LLM Gateway Boundary
+
+The current platform contract is LiteLLM-first.
+
+Rules:
+
+- hosted NullClaw runtimes must not receive provider master keys
+- provider credentials belong only to the LiteLLM core secret scope
+- runtimes receive only a per-runtime LiteLLM key, LiteLLM base URL, and non-LLM secrets such as Telegram credentials
+- LiteLLM budget and rate-limit behavior is part of the operational contract and must be documented when changed
+- if LiteLLM responses and NullClaw error handling do not map cleanly, document the mismatch in `knowledge/` instead of hiding it

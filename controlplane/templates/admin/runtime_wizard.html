@@ -1,0 +1,188 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+<a href="/admin/runtime-wizard/?reset=1" class="op-button secondary">Reset Wizard</a>
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-card">
+  <h2>Progress</h2>
+  <div class="op-actions">
+    {% for item in wizard_steps %}
+    <span class="op-badge {% if item.status == 'current' %}ok{% elif item.status == 'complete' %}neutral{% else %}warn{% endif %}">
+      {{ item.number }}. {{ item.label }}
+    </span>
+    {% endfor %}
+  </div>
+</section>
+
+{% if not baseline_ready %}
+<section class="op-card">
+  <h2>Missing Provider / Model Baseline</h2>
+  <p class="op-note">Wizard expects a platform provider connection and default model alias. Rebuild the baseline from the current runtime state first.</p>
+  <form method="post" class="op-actions">
+    {% csrf_token %}
+    <input type="hidden" name="step" value="{{ step }}">
+    <input type="hidden" name="action" value="backfill">
+    <button class="op-button primary" type="submit">Rebuild Baseline</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="op-card">
+  <h2>Step {{ step }} of {{ wizard_steps|length }}</h2>
+  <form method="post" class="op-form">
+    {% csrf_token %}
+    <input type="hidden" name="step" value="{{ step }}">
+
+    {% if step == 1 %}
+    <div class="op-form-grid">
+      <div class="op-field">
+        <label for="runtime_id">Runtime ID</label>
+        <input id="runtime_id" type="text" name="runtime_id" value="{{ wizard.runtime_id }}" required>
+      </div>
+      <div class="op-field">
+        <label for="gateway_port">Gateway Port</label>
+        <input id="gateway_port" type="number" name="gateway_port" value="{{ wizard.gateway_port }}" required>
+      </div>
+      <div class="op-field">
+        <label for="tenant">Tenant</label>
+        <input id="tenant" type="text" name="tenant" value="{{ wizard.tenant }}">
+      </div>
+      <div class="op-field">
+        <label for="plan">Plan</label>
+        <input id="plan" type="text" name="plan" value="{{ wizard.plan }}">
+      </div>
+      <div class="op-field">
+        <label for="runtime_role">Runtime Profile</label>
+        <select id="runtime_role" name="runtime_role">
+          <option value="live" {% if wizard.runtime_role == "live" %}selected{% endif %}>live</option>
+          <option value="probe" {% if wizard.runtime_role == "probe" %}selected{% endif %}>probe</option>
+          <option value="limit-probe" {% if wizard.runtime_role == "limit-probe" %}selected{% endif %}>limit-probe</option>
+          <option value="playground" {% if wizard.runtime_role == "playground" %}selected{% endif %}>playground</option>
+          <option value="custom" {% if wizard.runtime_role == "custom" %}selected{% endif %}>custom</option>
+        </select>
+      </div>
+    </div>
+    {% elif step == 2 %}
+    <div class="op-form-grid">
+      <div class="op-field">
+        <label for="model">Model Alias</label>
+        <input id="model" type="text" name="model" value="{{ wizard.model }}">
+      </div>
+      <div class="op-field">
+        <label for="budget_usd">Budget (USD)</label>
+        <input id="budget_usd" type="text" name="budget_usd" value="{{ wizard.budget_usd }}">
+      </div>
+      <div class="op-field">
+        <label for="rpm_limit">RPM Limit</label>
+        <input id="rpm_limit" type="text" name="rpm_limit" value="{{ wizard.rpm_limit }}">
+      </div>
+      <div class="op-field">
+        <label for="tpm_limit">TPM Limit</label>
+        <input id="tpm_limit" type="text" name="tpm_limit" value="{{ wizard.tpm_limit }}">
+      </div>
+      <div class="op-field">
+        <label for="provider_connection_id">Provider Connection</label>
+        <select id="provider_connection_id" name="provider_connection_id">
+          <option value="">-</option>
+          {% for provider in providers %}
+          <option value="{{ provider.pk }}" {% if wizard.provider_connection_id == provider.pk|stringformat:"s" %}selected{% endif %}>{{ provider.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="op-field">
+        <label for="provider_model_id">Provider Model</label>
+        <select id="provider_model_id" name="provider_model_id">
+          <option value="">-</option>
+          {% for model in models %}
+          <option value="{{ model.pk }}" {% if wizard.provider_model_id == model.pk|stringformat:"s" %}selected{% endif %}>{{ model.alias }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    {% elif step == 3 %}
+    <fieldset class="op-field">
+      <legend>Channels &amp; Tools</legend>
+      <div class="op-checkboxes">
+        <label class="op-checkbox"><input type="checkbox" name="telegram_enabled" value="1" {% if wizard.telegram_enabled %}checked{% endif %}> Telegram</label>
+        <label class="op-checkbox"><input type="checkbox" name="slack_enabled" value="1" {% if wizard.slack_enabled %}checked{% endif %}> Slack</label>
+        <label class="op-checkbox"><input type="checkbox" name="mattermost_enabled" value="1" {% if wizard.mattermost_enabled %}checked{% endif %}> Mattermost</label>
+        <label class="op-checkbox"><input type="checkbox" name="search_enabled" value="1" {% if wizard.search_enabled %}checked{% endif %}> Search</label>
+        <label class="op-checkbox"><input type="checkbox" name="http_enabled" value="1" {% if wizard.http_enabled %}checked{% endif %}> HTTP Tools</label>
+      </div>
+    </fieldset>
+    <div class="op-form-grid">
+      <div class="op-field">
+        <label for="search_provider">Search Provider</label>
+        <input id="search_provider" type="text" name="search_provider" value="{{ wizard.search_provider }}">
+      </div>
+      <div class="op-field">
+        <label for="search_base_url">Search Base URL</label>
+        <input id="search_base_url" type="text" name="search_base_url" value="{{ wizard.search_base_url }}">
+      </div>
+    </div>
+    {% elif step == 4 %}
+    <div class="op-form-grid">
+      <div class="op-field">
+        <label for="telegram_bot_token">Telegram Bot Token</label>
+        <input id="telegram_bot_token" type="password" name="telegram_bot_token" placeholder="write-only">
+      </div>
+      <div class="op-field">
+        <label for="telegram_allow_from">Telegram Allow From</label>
+        <input id="telegram_allow_from" type="text" name="telegram_allow_from" value="{{ wizard.telegram_allow_from }}">
+      </div>
+    </div>
+    <p class="op-note">Secrets are stored via the existing service layer and remain write-only masked in UI and API responses.</p>
+    {% else %}
+    <div class="op-grid cols-2">
+      <article class="op-card">
+        <h3>Runtime Identity</h3>
+        <dl class="op-meta">
+          <div class="op-meta-row"><dt>Runtime ID</dt><dd>{{ wizard.runtime_id }}</dd></div>
+          <div class="op-meta-row"><dt>Port</dt><dd>{{ wizard.gateway_port }}</dd></div>
+          <div class="op-meta-row"><dt>Tenant</dt><dd>{{ wizard.tenant|default:"-" }}</dd></div>
+          <div class="op-meta-row"><dt>Plan</dt><dd>{{ wizard.plan|default:"-" }}</dd></div>
+          <div class="op-meta-row"><dt>Profile</dt><dd>{{ wizard.runtime_role }}</dd></div>
+        </dl>
+      </article>
+      <article class="op-card">
+        <h3>Model &amp; Limits</h3>
+        <dl class="op-meta">
+          <div class="op-meta-row"><dt>Model Alias</dt><dd>{{ wizard.model }}</dd></div>
+          <div class="op-meta-row"><dt>Budget</dt><dd>{{ wizard.budget_usd|default:"-" }}</dd></div>
+          <div class="op-meta-row"><dt>RPM</dt><dd>{{ wizard.rpm_limit|default:"-" }}</dd></div>
+          <div class="op-meta-row"><dt>TPM</dt><dd>{{ wizard.tpm_limit|default:"-" }}</dd></div>
+        </dl>
+      </article>
+    </div>
+    <article class="op-card">
+      <h3>Channels</h3>
+      <ul class="op-list">
+        <li>telegram={{ wizard.telegram_enabled }}</li>
+        <li>slack={{ wizard.slack_enabled }}</li>
+        <li>mattermost={{ wizard.mattermost_enabled }}</li>
+        <li>search={{ wizard.search_enabled }}</li>
+        <li>http={{ wizard.http_enabled }}</li>
+      </ul>
+    </article>
+    <label class="op-checkbox"><input type="checkbox" name="run_smoke_test" value="1"> Run smoke test after create</label>
+    {% endif %}
+
+    <div class="op-actions">
+      {% if step > 1 %}
+      <button class="op-button secondary" type="submit" name="action" value="previous">Previous</button>
+      {% endif %}
+      {% if step < 5 %}
+      <button class="op-button primary" type="submit" name="action" value="next">Next</button>
+      {% endif %}
+      {% if step == 4 %}
+      <button class="op-button secondary" type="submit" name="action" value="validate">Validate</button>
+      {% endif %}
+      {% if step == 5 %}
+      <button class="op-button primary" type="submit" name="action" value="create">Create Runtime</button>
+      {% endif %}
+    </div>
+  </form>
+</section>
+{% endblock %}

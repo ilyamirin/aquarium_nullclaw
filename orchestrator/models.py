@@ -12,10 +12,20 @@ class RuntimeRecord(BaseModel):
     gateway_port: int
     telegram_enabled: bool
     model: str
+    runtime_role: str = "custom"
+    tenant_id: str | None = None
+    plan_id: str | None = None
     infisical_project_slug: str
     infisical_project_id: str
     infisical_env: str = "prod"
     infisical_path: str = "/runtime"
+    litellm_key_name: str = ""
+    litellm_budget_usd: float | None = None
+    litellm_rpm_limit: int | None = None
+    litellm_tpm_limit: int | None = None
+    litellm_model_alias: str = "openai/qwen/qwen3.6-plus"
+    litellm_price_input_per_million_usd: float | None = None
+    litellm_price_output_per_million_usd: float | None = None
     runtime_env_file: str
     runtime_home: str
     workspace_dir: str
@@ -36,6 +46,14 @@ class RuntimeRecord(BaseModel):
     def validate_gateway_port(cls, value: int) -> int:
         if value < 1 or value > 65535:
             raise ValueError("gateway port must be between 1 and 65535")
+        return value
+
+    @field_validator("runtime_role")
+    @classmethod
+    def validate_runtime_role(cls, value: str) -> str:
+        allowed = {"live", "probe", "limit-probe", "custom"}
+        if value not in allowed:
+            raise ValueError(f"runtime role must be one of: {', '.join(sorted(allowed))}")
         return value
 
     @property

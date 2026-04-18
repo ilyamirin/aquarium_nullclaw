@@ -1,0 +1,50 @@
+name: aquarium-litellm
+
+services:
+  litellm:
+    build:
+      context: ..
+      dockerfile: docker/litellm-infisical.Dockerfile
+    entrypoint: ["/opt/aquarium-scripts/litellm-infisical-entrypoint.sh"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      INFISICAL_DISABLE_UPDATE_CHECK: "true"
+      LITELLM_CONFIG_PATH: /app/config.yaml
+      LITELLM_PORT: 4000
+      DATABASE_URL: postgresql://${LITELLM_DB_USER:-litellm}:${LITELLM_DB_PASSWORD}@litellm-db:5432/${LITELLM_DB_NAME:-litellm}
+    volumes:
+      - ../scripts:/opt/aquarium-scripts:ro
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:${LITELLM_PORT:-14000}:4000"
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4000/health/liveliness"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+  litellm-db:
+    image: postgres:16-alpine
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_DB: ${LITELLM_DB_NAME:-litellm}
+      POSTGRES_USER: ${LITELLM_DB_USER:-litellm}
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${LITELLM_DB_PORT:-15432}:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LITELLM_DB_USER:-litellm} -d ${LITELLM_DB_NAME:-litellm}"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

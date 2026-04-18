@@ -9,6 +9,10 @@
 /nullclaw-probe-stack/data/
 /infisical-stack/.env
 /infisical-stack/data/
+/litellm-stack/.env
+/litellm-stack/data/
+/monitoring-stack/.env
+/monitoring-stack/data/
 
 # Security and scan artifacts.
 /.pre-commit-cache/
@@ -53,3 +57,13 @@ __pycache__/
 !/nullclaw-probe-stack/scripts/
 !/infisical-stack/.env.example
 !/infisical-stack/docker-compose.yml
+!/litellm-stack/.env.example
+!/litellm-stack/docker-compose.yml
+!/litellm-stack/config.yaml
+!/monitoring-stack/.env.example
+!/monitoring-stack/docker-compose.yml
+!/monitoring-stack/alloy/
+!/monitoring-stack/loki/
+!/monitoring-stack/tempo/
+!/monitoring-stack/mimir/
+!/monitoring-stack/grafana/

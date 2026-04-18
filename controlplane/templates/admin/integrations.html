@@ -1,0 +1,120 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="backfill"><button class="op-button secondary" type="submit">Backfill Related Records</button></form>
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-grid">
+  <article class="op-card">
+    <h2>Integration Connections</h2>
+    {% if integrations %}
+    <table class="op-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Runtime / Tenant</th>
+          <th>Status</th>
+          <th>Secrets</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for integration in integrations %}
+        <tr>
+          <td>
+            <strong>{{ integration.display_name|default:integration.name }}</strong><br>
+            <span class="op-note">{{ integration.name }}</span>
+          </td>
+          <td>{{ integration.integration_type }}</td>
+          <td>{{ integration.runtime|default:integration.tenant|default:"-" }}</td>
+          <td><span class="op-badge {% if integration.status == 'verified' %}ok{% elif integration.status == 'error' %}error{% elif integration.status == 'disabled' %}warn{% else %}neutral{% endif %}">{{ integration.status }}</span></td>
+          <td>{{ integration.secret_count }}</td>
+          <td>
+            <div class="op-inline-actions">
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="test"><input type="hidden" name="connection_id" value="{{ integration.id }}"><button class="op-button secondary" type="submit">Test</button></form>
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="connection_id" value="{{ integration.id }}"><button class="op-button danger" type="submit">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="op-empty">No integrations configured yet.</div>
+    {% endif %}
+  </article>
+
+  <article class="op-card">
+    <h2>{% if selected_connection %}Edit Integration{% else %}Create Integration{% endif %}</h2>
+    {% if integrations %}
+    <form method="get" class="op-form">
+      <div class="op-field">
+        <label for="edit_integration">Load Existing Integration</label>
+        <select id="edit_integration" name="edit">
+          <option value="">Create new integration</option>
+          {% for item in integrations %}
+          <option value="{{ item.id }}" {% if selected_connection and selected_connection.pk == item.id %}selected{% endif %}>{{ item.display_name|default:item.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="op-actions">
+        <button class="op-button secondary" type="submit">Load Selection</button>
+        {% if selected_connection %}<a href="/admin/integrations/" class="op-button secondary">Clear</a>{% endif %}
+      </div>
+    </form>
+    {% endif %}
+    <form method="post" class="op-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      <input type="hidden" name="connection_id" value="{{ integration_form.connection_id }}">
+      <div class="op-form-grid">
+        <div class="op-field">
+          <label for="integration_type">Integration Type</label>
+          <select id="integration_type" name="integration_type">
+            <option value="telegram" {% if integration_form.integration_type == "telegram" %}selected{% endif %}>telegram</option>
+            <option value="slack" {% if integration_form.integration_type == "slack" %}selected{% endif %}>slack</option>
+            <option value="mattermost" {% if integration_form.integration_type == "mattermost" %}selected{% endif %}>mattermost</option>
+            <option value="search" {% if integration_form.integration_type == "search" %}selected{% endif %}>search</option>
+          </select>
+        </div>
+        <div class="op-field">
+          <label for="runtime_id">Runtime</label>
+          <select id="runtime_id" name="runtime_id">
+            <option value="">-</option>
+            {% for runtime in runtimes %}
+            <option value="{{ runtime.runtime_id }}" {% if integration_form.runtime_id == runtime.runtime_id %}selected{% endif %}>{{ runtime.runtime_id }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="op-field">
+          <label for="tenant">Tenant</label>
+          <input id="tenant" type="text" name="tenant" value="{{ integration_form.tenant }}">
+        </div>
+        <div class="op-field">
+          <label for="display_name">Display Name</label>
+          <input id="display_name" type="text" name="display_name" value="{{ integration_form.display_name }}">
+        </div>
+        <div class="op-field">
+          <label for="allow_from">Telegram Allow From</label>
+          <input id="allow_from" type="text" name="allow_from" value="{{ integration_form.allow_from }}">
+        </div>
+        <div class="op-field">
+          <label for="search_provider">Search Provider</label>
+          <input id="search_provider" type="text" name="search_provider" value="{{ integration_form.search_provider }}">
+        </div>
+        <div class="op-field">
+          <label for="search_base_url">Search Base URL</label>
+          <input id="search_base_url" type="text" name="search_base_url" value="{{ integration_form.search_base_url }}">
+        </div>
+      </div>
+      <label class="op-checkbox"><input type="checkbox" name="enabled" value="1" {% if integration_form.enabled %}checked{% endif %}> Enabled</label>
+      <div class="op-actions">
+        <button class="op-button primary" type="submit">{% if selected_connection %}Update Integration{% else %}Create Integration{% endif %}</button>
+        {% if selected_connection %}<a href="/admin/integrations/" class="op-button secondary">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </article>
+</section>
+{% endblock %}

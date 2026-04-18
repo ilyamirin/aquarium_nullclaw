@@ -1,0 +1,126 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_header_actions %}
+{% if not baseline_ready %}
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="backfill"><button class="op-button primary" type="submit">Rebuild Baseline</button></form>
+{% endif %}
+{% endblock %}
+
+{% block operator_body %}
+<section class="op-grid">
+  <article class="op-card">
+    <h2>Provider Connections</h2>
+    {% if providers %}
+    <table class="op-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Kind</th>
+          <th>Scope</th>
+          <th>Status</th>
+          <th>Verified</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for provider in providers %}
+        <tr>
+          <td>
+            <strong>{{ provider.display_name }}</strong><br>
+            <span class="op-note">{{ provider.name }}{% if provider.tenant %} · {{ provider.tenant.slug }}{% endif %}</span>
+          </td>
+          <td>{{ provider.provider_kind }}</td>
+          <td>{{ provider.scope }}</td>
+          <td><span class="op-badge {% if provider.status == 'verified' %}ok{% elif provider.status == 'error' %}error{% elif provider.status == 'configured' %}neutral{% else %}warn{% endif %}">{{ provider.status }}</span></td>
+          <td>{{ provider.last_verified_at|default:"-" }}</td>
+          <td>
+            <div class="op-inline-actions">
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="test"><input type="hidden" name="connection_id" value="{{ provider.pk }}"><button class="op-button secondary" type="submit">Test</button></form>
+              <form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="connection_id" value="{{ provider.pk }}"><button class="op-button danger" type="submit">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="op-empty">No provider connections yet. Build the baseline or create the first provider manually.</div>
+    {% endif %}
+  </article>
+
+  <article class="op-card">
+    <h2>{% if selected_provider %}Edit Provider{% else %}Create Provider{% endif %}</h2>
+    {% if providers %}
+    <form method="get" class="op-form">
+      <div class="op-field">
+        <label for="edit_provider">Load Existing Provider</label>
+        <select id="edit_provider" name="edit">
+          <option value="">Create new provider</option>
+          {% for provider in providers %}
+          <option value="{{ provider.pk }}" {% if selected_provider and selected_provider.pk == provider.pk %}selected{% endif %}>{{ provider.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="op-actions">
+        <button class="op-button secondary" type="submit">Load Selection</button>
+        {% if selected_provider %}<a href="/admin/providers/" class="op-button secondary">Clear</a>{% endif %}
+      </div>
+    </form>
+    {% endif %}
+    <form method="post" class="op-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      <input type="hidden" name="provider_id" value="{{ provider_form.provider_id }}">
+      <div class="op-form-grid">
+        <div class="op-field">
+          <label for="name">Name</label>
+          {% if selected_provider %}
+          <input id="name" type="text" name="name" value="{{ provider_form.name }}" readonly>
+          {% else %}
+          <input id="name" type="text" name="name" value="{{ provider_form.name }}" required>
+          {% endif %}
+        </div>
+        <div class="op-field">
+          <label for="display_name">Display Name</label>
+          <input id="display_name" type="text" name="display_name" value="{{ provider_form.display_name }}">
+        </div>
+        <div class="op-field">
+          <label for="provider_kind">Provider Kind</label>
+          <select id="provider_kind" name="provider_kind">
+            <option value="openrouter" {% if provider_form.provider_kind == "openrouter" %}selected{% endif %}>openrouter</option>
+            <option value="openai" {% if provider_form.provider_kind == "openai" %}selected{% endif %}>openai</option>
+            <option value="openai-compatible" {% if provider_form.provider_kind == "openai-compatible" %}selected{% endif %}>openai-compatible</option>
+            <option value="anthropic" {% if provider_form.provider_kind == "anthropic" %}selected{% endif %}>anthropic</option>
+            <option value="gemini" {% if provider_form.provider_kind == "gemini" %}selected{% endif %}>gemini</option>
+            <option value="custom" {% if provider_form.provider_kind == "custom" %}selected{% endif %}>custom</option>
+          </select>
+        </div>
+        <div class="op-field">
+          <label for="scope">Scope</label>
+          <select id="scope" name="scope">
+            <option value="platform" {% if provider_form.scope == "platform" %}selected{% endif %}>platform</option>
+            <option value="tenant" {% if provider_form.scope == "tenant" %}selected{% endif %}>tenant</option>
+          </select>
+        </div>
+        <div class="op-field">
+          <label for="tenant">Tenant</label>
+          <input id="tenant" type="text" name="tenant" value="{{ provider_form.tenant }}">
+        </div>
+        <div class="op-field">
+          <label for="base_url">Base URL</label>
+          <input id="base_url" type="text" name="base_url" value="{{ provider_form.base_url }}">
+        </div>
+        <div class="op-field">
+          <label for="api_key">API Key</label>
+          <input id="api_key" type="password" name="api_key" placeholder="{% if selected_provider %}leave empty to keep current{% else %}write-only{% endif %}">
+        </div>
+      </div>
+      <p class="op-note">API keys remain write-only masked. Base URL is stored through the same provider secret flow.</p>
+      <div class="op-actions">
+        <button class="op-button primary" type="submit">{% if selected_provider %}Update Provider{% else %}Create Provider{% endif %}</button>
+        {% if selected_provider %}<a href="/admin/providers/" class="op-button secondary">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </article>
+</section>
+{% endblock %}

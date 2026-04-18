@@ -62,14 +62,17 @@ def api_request(
     expected: tuple[int, ...] = (200,),
 ) -> requests.Response:
     url = f"{api_url.rstrip('/')}{path}"
-    response = requests.request(
-        method=method,
-        url=url,
-        headers={"Authorization": f"Bearer {token}"},
-        json=json_body,
-        params=params,
-        timeout=20,
-    )
+    try:
+        response = requests.request(
+            method=method,
+            url=url,
+            headers={"Authorization": f"Bearer {token}"},
+            json=json_body,
+            params=params,
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        raise InfisicalError(f"Infisical {method} {path} request failed: {exc}") from exc
     if response.status_code not in expected:
         raise InfisicalError(
             f"Infisical {method} {path} failed with {response.status_code}: {response.text.strip()}"
@@ -156,6 +159,27 @@ def upsert_secret(api_url: str, token: str, project_id: str, env_slug: str, secr
             json_body=payload,
             expected=(200, 201),
         )
+
+
+def delete_secret(api_url: str, token: str, project_id: str, env_slug: str, secret_path: str, name: str) -> None:
+    try:
+        api_request(
+            api_url,
+            token,
+            "DELETE",
+            f"/api/v4/secrets/{name}",
+            json_body={
+                "projectId": project_id,
+                "environment": env_slug,
+                "secretPath": secret_path,
+                "type": "shared",
+            },
+            expected=(200, 204),
+        )
+    except InfisicalError as exc:
+        if "404" in str(exc):
+            return
+        raise
 
 
 def create_service_token(api_url: str, project_id: str, runtime_id: str, env_slug: str, secret_path: str) -> str:
