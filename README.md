@@ -23,6 +23,8 @@ I built the control, security, and operations system required to run imported ag
 I did **not** build the upstream `nullclaw` runtime itself.
 I intentionally treated it as imported source and built the hosting/control-plane boundary around it.
 
+Upstream credit: [NullClaw](https://github.com/nullclaw/nullclaw) is a sharp, ambitious runtime project and the reason this wrapper platform is worth building around in the first place.
+
 ## Technical Value
 
 The interesting part of this project is not “agent chat”.
@@ -79,6 +81,21 @@ More detail:
 - [Public architecture notes](docs/architecture.md)
 - [Security model](docs/security-model.md)
 - [Demo walkthrough](docs/demo-walkthrough.md)
+
+## External Solutions Used
+
+- [NullClaw](https://github.com/nullclaw/nullclaw): upstream agent runtime treated here as an imported dependency
+- [Infisical](https://infisical.com/): secrets source-of-truth and runtime secret injection backend
+- [LiteLLM](https://github.com/BerriAI/litellm): model gateway, per-runtime virtual keys, budgets, and rate limits
+- [OpenRouter](https://openrouter.ai/): provider endpoint used in the default demo path
+- [Django](https://www.djangoproject.com/): web framework for the operator control plane
+- [Unfold](https://unfoldadmin.com/): admin UI toolkit used to shape the operator console
+- [Grafana](https://grafana.com/): operator-facing observability UI
+- [Grafana Alloy](https://grafana.com/docs/alloy/latest/): collection and routing layer for telemetry
+- [Grafana Loki](https://grafana.com/oss/loki/): log storage and query backend
+- [Grafana Tempo](https://grafana.com/oss/tempo/): trace storage backend
+- [Grafana Mimir](https://grafana.com/oss/mimir/): metrics storage backend
+- [Docker](https://www.docker.com/): local packaging and runtime isolation layer for the demo stacks
 
 ## Quickstart
 
