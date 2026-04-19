@@ -25,6 +25,11 @@ jobs:
           python -m pip install -e .[dev]
           python -m pip install pre-commit
 
+      - name: Install lint system tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck shfmt
+
       - name: Run tests
         run: pytest
 

@@ -66,6 +66,11 @@ This matches the current wrapper repo shape: docs, shell, YAML, and generated co
 Shell linting uses locally installed binaries instead of the `shellcheck-py` wrapper.
 Reason: the wrapper proved less reliable in this environment than direct system tools.
 
+Current CI implication:
+
+- GitHub Actions on `ubuntu-latest` must install `shellcheck` and `shfmt` before running `make lint`
+- otherwise the local `language: system` pre-commit hooks fail even when the Python environment is correct
+
 ## Security Scanner Recommendation
 
 Recommended now:
