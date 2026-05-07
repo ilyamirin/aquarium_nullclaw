@@ -18,10 +18,14 @@
 /.pre-commit-cache/
 /.cache/
 /.playwright-cli/
+/.superpowers/
 /.trivy/
 /reports/
 *.sarif
 *.jsonl
+
+# Local candidate social-preview art, not part of the tracked demo assets.
+/docs/assets/github-social-preview-lobster*
 
 # Python and generic tool caches.
 __pycache__/
