@@ -69,11 +69,84 @@ Core models:
 - `IntegrationConnection`
 - `ProviderConnection`
 - `ProviderModel`
+- `SkillCatalogEntry`
 - `RuntimeSecretRef`
 - `RuntimeActionLog`
 - `RuntimeDiagnosticSnapshot`
 - `RuntimeChatSession`
 - `RuntimeChatMessage`
+
+`SkillCatalogEntry` is the schema foundation for the future agent operator skill catalog. It keeps the original local-catalog fields (`key`, `display_name`, `description`, `category`, `source_path`, `compatibility_rules`, `default_enabled`, `status`) and adds the operator-skills trust/dependency contract:
+
+- `skill_type`: `behavior`, `hybrid`, or `executable`
+- `source`: `internal`, `nullclaw-registry`, or `github`
+- `trust_status`: `internal`, `reviewed`, `quarantine`, or `blocked`
+- `source_url`: external review/source pointer, blank for internal skills
+- `required_integrations`, `required_secrets`, `required_services`: dependency declarations stored as JSON arrays
+- `permissions`: approved Aquarium capability permissions, not shell access
+- `entrypoints`: approved Aquarium adapter entrypoint names for executable or hybrid skills
+
+Internal skill entries default to `skill_type=behavior`, `source=internal`, and `trust_status=internal`. External import code must explicitly set external sources to `trust_status=quarantine` before any future review flow enables them.
+
+Curated internal operator skills are tracked source, not database-only seed data:
+
+- package source of truth: [skills](/Users/ilyagmirin/PycharmProjects/aquarium/skills)
+- bootstrap loader: [orchestrator/service_layer.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/service_layer.py)
+- API surface: `GET /api/skills/catalog`
+
+Each internal package follows the AgentSkills-style layout:
+
+```text
+skills/<skill-key>/
+  SKILL.md
+  manifest.json
+  README.md
+```
+
+`SKILL.md` is the agent-facing operator instruction. `manifest.json` is the machine-readable source of truth for display metadata, dependencies, permissions, default-enabled state, and adapter entrypoints. The Django bootstrap path reads `skills/*/manifest.json` and upserts that metadata into `SkillCatalogEntry` through `bootstrap_reference_data()`, so repeated startup/import/migration flows do not create duplicates and catalog/API behavior follows the tracked package manifests. Manifest loading fails fast before any catalog write if required fields are missing, if two packages declare the same `key`, or if manifest-driven fields use the wrong JSON type. Scalar manifest fields (`key`, `display_name`, `description`, `category`, `type`, `source`, `trust_status`) must be strings, `default_enabled` must be a boolean, and dependency/capability fields (`required_integrations`, `required_secrets`, `required_services`, `permissions`, `entrypoints`) must be arrays of strings.
+
+The v1 internal catalog contains:
+
+- `runtime-operator`
+- `incident-analyst`
+- `log-trace-investigator`
+- `litellm-limits-manager`
+- `secret-checker`
+- `telegram-operator`
+- `release-smoke-tester`
+- `support-triage`
+- `ops-reporter`
+- `gitea-operator`
+- `kanboard-operator`
+
+Trust model for this catalog:
+
+- internal packages always use `source=internal`, `trust_status=internal`, and `status=active`
+- executable skills declare capability permissions such as `runtime_lifecycle`, `diagnostics_read`, `litellm_admin`, `secrets_metadata_read`, `gitea_api`, or `kanboard_api`
+- executable skills may use only approved Aquarium adapter entrypoints listed in the catalog metadata
+- no v1 internal skill grants arbitrary shell execution, direct host access, raw secret access, or unreviewed downloaded code execution
+- integration-specific skills remain visible in the catalog and are disabled by the UI until their declared dependencies are available
+
+Runtime skill selection:
+
+- operator entrypoints: runtime wizard step 3 and the runtime detail `Operator Skills` section
+- API catalog: `GET /api/skills/catalog`
+- runtime create/update API accepts `skill_keys`
+- selected skills are stored in `Runtime.settings`
+- stored keys: `skill_stack`, `skill_permissions`, `skill_entrypoints`, and `skill_prompt_sections`
+- `skill_stack` preserves operator selection order and removes duplicate keys
+- `skill_permissions` and `skill_entrypoints` are derived from reviewed catalog metadata
+- `skill_prompt_sections` stores the selected `SKILL.md` instruction bodies for future runtime prompt/adaptor compilation
+- dependency status is computed from runtime channels, runtime integration records, runtime secret refs, and platform service availability
+
+Current dependency behavior:
+
+- `controlplane`, `infisical`, `litellm`, and `runtime-gateway` are considered available platform services in the local operator flow
+- `monitoring` is available when `monitoring-stack/.env` exists
+- integration dependencies such as `telegram`, `search`, `gitea`, and `kanboard` must be present through runtime channels/settings or integration records
+- secret dependencies are matched against runtime secret refs by backend secret name
+- unavailable skills are shown with concrete missing dependency reasons and cannot be newly selected from the UI
+- already-selected skills remain visible on runtime detail with dependency warnings so an operator can remove or repair them
 
 Current runtime profiles:
 

@@ -102,6 +102,7 @@ urlpatterns = [
     path("api/integrations/<int:connection_id>", api.integration_detail, name="api-integration-detail"),
     path("api/integrations/<int:connection_id>/test", api.integration_test, name="api-integration-test"),
     path("api/models/catalog", api.models_catalog, name="api-models-catalog"),
+    path("api/skills/catalog", api.skills_catalog, name="api-skills-catalog"),
     path("api/models/custom", api.custom_models_collection, name="api-custom-models"),
     path("api/models/custom/<int:model_id>", api.custom_model_detail, name="api-custom-model-detail"),
     path("api/runtime-wizard/options", api.runtime_wizard_options, name="api-runtime-wizard-options"),

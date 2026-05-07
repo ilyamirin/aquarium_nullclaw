@@ -1,0 +1,15 @@
+{
+  "key": "litellm-limits-manager",
+  "display_name": "LiteLLM Limits Manager",
+  "description": "Inspect LiteLLM budgets, RPM/TPM limits, key state, and limit-related failures.",
+  "category": "Limits and Secrets",
+  "type": "executable",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": [],
+  "required_secrets": [],
+  "required_services": ["litellm"],
+  "permissions": ["litellm_admin"],
+  "entrypoints": ["litellm.key.inspect", "litellm.limits.read", "litellm.failures"],
+  "default_enabled": false
+}

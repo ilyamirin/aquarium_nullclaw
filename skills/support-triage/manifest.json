@@ -1,0 +1,15 @@
+{
+  "key": "support-triage",
+  "display_name": "Support Triage",
+  "description": "Classify operator or customer requests and suggest concrete next steps.",
+  "category": "Operator Workflow",
+  "type": "behavior",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": [],
+  "required_secrets": [],
+  "required_services": [],
+  "permissions": [],
+  "entrypoints": [],
+  "default_enabled": true
+}

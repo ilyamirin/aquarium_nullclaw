@@ -138,6 +138,7 @@ def _wizard_defaults() -> dict[str, Any]:
         "telegram_allow_from": "373793732",
         "search_provider": "",
         "search_base_url": "",
+        "skill_keys": [],
     }
 
 
@@ -191,6 +192,7 @@ def _update_wizard_state_from_post(request: HttpRequest, state: dict[str, Any], 
                 "http_enabled": _bool_from_post(request.POST.get("http_enabled")),
                 "search_provider": request.POST.get("search_provider", "").strip(),
                 "search_base_url": request.POST.get("search_base_url", "").strip(),
+                "skill_keys": request.POST.getlist("skill_keys"),
             }
         )
     elif step == 4:
@@ -443,6 +445,9 @@ def runtime_detail_view(request: HttpRequest, runtime_id: str) -> HttpResponse:
             elif action == "sync_limits":
                 _service().sync_runtime_limits(runtime_id, actor=request.user)
                 messages.success(request, f"Repaired LiteLLM limit sync for {runtime_id}.")
+            elif action == "update_skills":
+                _service().update_runtime_skills(runtime_id, request.POST.getlist("skill_keys"), actor=request.user)
+                messages.success(request, "Runtime skill stack updated.")
             elif action == "update_limits":
                 _service().update_runtime_limits(
                     runtime_id,
@@ -585,6 +590,7 @@ def runtime_wizard_view(request: HttpRequest) -> HttpResponse:
                             "search_provider": wizard_data["search_provider"],
                             "search_base_url": wizard_data["search_base_url"],
                         },
+                        skill_keys=wizard_data["skill_keys"],
                         default_provider_connection_id=_int_from_post(wizard_data["provider_connection_id"]),
                         default_provider_model_id=_int_from_post(wizard_data["provider_model_id"]),
                     ),
@@ -612,6 +618,22 @@ def runtime_wizard_view(request: HttpRequest) -> HttpResponse:
             wizard=wizard_data,
             providers=_service().list_provider_connections(),
             models=_service().models_catalog(),
+            skill_catalog=_service().skill_catalog_payload(
+                context={
+                    "integrations": [
+                        key
+                        for key, enabled in {
+                            "telegram": wizard_data["telegram_enabled"],
+                            "slack": wizard_data["slack_enabled"],
+                            "mattermost": wizard_data["mattermost_enabled"],
+                            "search": wizard_data["search_enabled"],
+                        }.items()
+                        if enabled
+                    ],
+                    "secrets": ["TELEGRAM_BOT_TOKEN"] if wizard_data["telegram_bot_token"] else [],
+                    "services": ["search"] if wizard_data["search_enabled"] else [],
+                }
+            )["items"],
             wizard_steps=_wizard_steps(step),
             baseline_ready=bool(_service().list_provider_connections()) and bool(_service().models_catalog()),
             runtime=runtime,

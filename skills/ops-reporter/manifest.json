@@ -1,0 +1,15 @@
+{
+  "key": "ops-reporter",
+  "display_name": "Ops Reporter",
+  "description": "Produce concise status updates, incident summaries, and action reports.",
+  "category": "Operator Workflow",
+  "type": "behavior",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": [],
+  "required_secrets": [],
+  "required_services": [],
+  "permissions": [],
+  "entrypoints": [],
+  "default_enabled": true
+}

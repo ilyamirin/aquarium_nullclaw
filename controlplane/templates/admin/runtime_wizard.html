@@ -122,6 +122,33 @@
         <input id="search_base_url" type="text" name="search_base_url" value="{{ wizard.search_base_url }}">
       </div>
     </div>
+    <fieldset class="op-field">
+      <legend>Operator Skills</legend>
+      <div class="op-grid cols-2">
+        {% for skill in skill_catalog %}
+        <label class="op-check op-card op-card-compact">
+          <input
+            type="checkbox"
+            name="skill_keys"
+            value="{{ skill.key }}"
+            {% if skill.key in wizard.skill_keys %}checked{% endif %}
+            {% if not skill.dependency_status.available %}disabled{% endif %}
+          >
+          <span>
+            <strong>{{ skill.display_name }}</strong>
+            <span class="op-badge neutral">{{ skill.skill_type }}</span>
+            <span class="op-badge neutral">{{ skill.trust_status }}</span><br>
+            <span class="op-note">{{ skill.description }}</span>
+            {% if not skill.dependency_status.available %}
+            <br><span class="op-note">Unavailable: {{ skill.dependency_status.reasons|join:", " }}</span>
+            {% endif %}
+          </span>
+        </label>
+        {% empty %}
+        <div class="op-empty">No curated skills available.</div>
+        {% endfor %}
+      </div>
+    </fieldset>
     {% elif step == 4 %}
     <div class="op-form-grid">
       <div class="op-field">

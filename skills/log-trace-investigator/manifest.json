@@ -1,0 +1,15 @@
+{
+  "key": "log-trace-investigator",
+  "display_name": "Log Trace Investigator",
+  "description": "Query monitoring backends and summarize likely causes from logs, traces, and metrics.",
+  "category": "Diagnostics",
+  "type": "executable",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": [],
+  "required_secrets": [],
+  "required_services": ["monitoring"],
+  "permissions": ["diagnostics_read"],
+  "entrypoints": ["diagnostics.logs", "diagnostics.traces", "diagnostics.metrics"],
+  "default_enabled": false
+}

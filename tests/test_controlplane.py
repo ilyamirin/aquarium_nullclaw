@@ -30,8 +30,11 @@ from controlplane.domain.models import (
     RuntimeSecretRef,
     SecretKind,
     SkillCatalogEntry,
-    Workspace,
+    SkillSource,
+    SkillTrustStatus,
+    SkillType,
     Tenant,
+    Workspace,
 )
 from orchestrator.litellm import DEFAULT_MODEL_ALIAS, DEFAULT_PROVIDER_MODEL, render_stack_config
 from orchestrator.models import RuntimeRecord, StateFile
@@ -39,18 +42,46 @@ from orchestrator.service_layer import (
     AgentCreateRequest,
     NULLCLAW_MAX_ACTIONS_PER_HOUR,
     backfill_agents_from_runtimes,
+    bootstrap_internal_skill_catalog,
+    bootstrap_reference_data,
     create_draft_agent,
     delete_integration_connection_service,
     import_json_state_if_empty,
+    internal_skill_manifest_entries,
     launch_agent,
     runtime_config_view,
+    runtime_detail_payload,
+    skill_catalog_payload,
     stop_agent,
     test_runtime_secret as service_test_runtime_secret,
     update_runtime_limits,
+    update_runtime_skills,
     upsert_integration_connection,
     upsert_runtime_secret,
     upsert_workspace_secret,
 )
+
+
+def _write_internal_skill_manifest(package_dir: Path, **overrides) -> None:
+    package_dir.mkdir(parents=True)
+    (package_dir / "SKILL.md").write_text("# Test Skill\n", encoding="utf-8")
+    manifest = {
+        "key": package_dir.name,
+        "display_name": "Test Skill",
+        "description": "Loaded from a test manifest.",
+        "category": "Diagnostics",
+        "type": "hybrid",
+        "source": "internal",
+        "trust_status": "internal",
+        "required_integrations": ["telegram"],
+        "required_secrets": ["TELEGRAM_BOT_TOKEN"],
+        "required_services": ["monitoring"],
+        "permissions": ["diagnostics_read"],
+        "entrypoints": ["diagnostics.summary"],
+        "default_enabled": False,
+    }
+    manifest.update(overrides)
+    (package_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 @pytest.fixture
@@ -134,6 +165,189 @@ def test_runtime_config_view_masks_sensitive_values(runtime_fixture: Runtime, mo
     assert payload["config"]["channels"]["telegram"]["accounts"]["main"]["bot_token"] == "***"
     assert payload["config"]["models"]["providers"]["custom"]["api_key"] == "***"
     assert payload["config"]["security"]["slack_signing_secret"] == "***"
+
+
+@pytest.mark.django_db
+def test_skill_catalog_entry_defaults_to_internal_behavior_skill() -> None:
+    skill = SkillCatalogEntry.objects.create(
+        key="support-triage",
+        display_name="Support Triage",
+        description="Classify operator requests.",
+        category="Operator Workflow",
+        source_path="skills/support-triage/SKILL.md",
+        required_integrations=["telegram"],
+        required_secrets=["TELEGRAM_BOT_TOKEN"],
+        required_services=["controlplane"],
+        permissions=["runtime_read"],
+        entrypoints=["runtime.status"],
+    )
+
+    assert skill.skill_type == SkillType.BEHAVIOR
+    assert skill.source == SkillSource.INTERNAL
+    assert skill.trust_status == SkillTrustStatus.INTERNAL
+    assert skill.source_url == ""
+    assert skill.required_integrations == ["telegram"]
+    assert skill.required_secrets == ["TELEGRAM_BOT_TOKEN"]
+    assert skill.required_services == ["controlplane"]
+    assert skill.permissions == ["runtime_read"]
+    assert skill.entrypoints == ["runtime.status"]
+
+
+@pytest.mark.django_db
+def test_bootstrap_reference_data_creates_internal_operator_skill_catalog_idempotently() -> None:
+    manifests = {manifest["key"]: manifest for manifest in internal_skill_manifest_entries()}
+    expected_keys = set(manifests)
+
+    bootstrap_reference_data()
+    bootstrap_reference_data()
+
+    skills = SkillCatalogEntry.objects.filter(key__in=expected_keys)
+    assert skills.count() == len(expected_keys)
+    assert set(skills.values_list("key", flat=True)) == expected_keys
+    assert SkillCatalogEntry.objects.filter(key="runtime-operator").count() == 1
+
+    runtime_operator = SkillCatalogEntry.objects.get(key="runtime-operator")
+    runtime_operator_manifest = manifests["runtime-operator"]
+    assert runtime_operator.skill_type == runtime_operator_manifest["type"]
+    assert runtime_operator.source == runtime_operator_manifest["source"]
+    assert runtime_operator.trust_status == runtime_operator_manifest["trust_status"]
+    assert runtime_operator.source_path == runtime_operator_manifest["source_path"]
+    assert runtime_operator.category == runtime_operator_manifest["category"]
+    assert runtime_operator.required_services == runtime_operator_manifest["required_services"]
+    assert runtime_operator.permissions == runtime_operator_manifest["permissions"]
+    assert runtime_operator.entrypoints == runtime_operator_manifest["entrypoints"]
+    assert runtime_operator.default_enabled == runtime_operator_manifest["default_enabled"]
+    assert runtime_operator.status == "active"
+
+    support_triage = SkillCatalogEntry.objects.get(key="support-triage")
+    support_triage_manifest = manifests["support-triage"]
+    assert support_triage.skill_type == support_triage_manifest["type"]
+    assert support_triage.required_integrations == support_triage_manifest["required_integrations"]
+    assert support_triage.permissions == support_triage_manifest["permissions"]
+    assert support_triage.default_enabled == support_triage_manifest["default_enabled"]
+
+
+@pytest.mark.django_db
+def test_bootstrap_internal_skill_catalog_reads_manifest_source_of_truth(monkeypatch, tmp_path) -> None:
+    package_dir = tmp_path / "skills" / "manifest-backed"
+    _write_internal_skill_manifest(
+        package_dir,
+        key="manifest-backed",
+        display_name="Manifest Backed",
+        description="Loaded from the package manifest.",
+    )
+
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", tmp_path / "skills")
+
+    bootstrap_internal_skill_catalog()
+
+    skill = SkillCatalogEntry.objects.get(key="manifest-backed")
+    assert skill.display_name == "Manifest Backed"
+    assert skill.description == "Loaded from the package manifest."
+    assert skill.category == "Diagnostics"
+    assert skill.skill_type == SkillType.HYBRID
+    assert skill.source == SkillSource.INTERNAL
+    assert skill.trust_status == SkillTrustStatus.INTERNAL
+    assert skill.source_path == str(Path("skills/manifest-backed/SKILL.md"))
+    assert skill.required_integrations == ["telegram"]
+    assert skill.required_secrets == ["TELEGRAM_BOT_TOKEN"]
+    assert skill.required_services == ["monitoring"]
+    assert skill.permissions == ["diagnostics_read"]
+    assert skill.entrypoints == ["diagnostics.summary"]
+    assert skill.default_enabled is False
+    assert skill.status == "active"
+
+
+def test_internal_skill_manifest_entries_rejects_duplicate_keys(monkeypatch, tmp_path) -> None:
+    skills_dir = tmp_path / "skills"
+    _write_internal_skill_manifest(skills_dir / "alpha", key="duplicate-skill")
+    _write_internal_skill_manifest(skills_dir / "bravo", key="duplicate-skill")
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", skills_dir)
+
+    with pytest.raises(ValueError, match="duplicate internal skill manifest key 'duplicate-skill'"):
+        internal_skill_manifest_entries()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_message"),
+    [
+        ("display_name", 123, "display_name must be a string"),
+        ("default_enabled", "false", "default_enabled must be a bool"),
+        ("required_services", ["monitoring", 7], "required_services must be a list of strings"),
+        ("permissions", "diagnostics_read", "permissions must be a list of strings"),
+    ],
+)
+def test_internal_skill_manifest_entries_rejects_malformed_field_types(
+    monkeypatch,
+    tmp_path,
+    field: str,
+    value,
+    expected_message: str,
+) -> None:
+    skills_dir = tmp_path / "skills"
+    _write_internal_skill_manifest(skills_dir / "malformed", **{field: value})
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", skills_dir)
+
+    with pytest.raises(ValueError, match=expected_message):
+        internal_skill_manifest_entries()
+
+
+def test_internal_skill_manifest_entries_rejects_non_object_manifest(monkeypatch, tmp_path) -> None:
+    skills_dir = tmp_path / "skills"
+    package_dir = skills_dir / "malformed"
+    package_dir.mkdir(parents=True)
+    (package_dir / "SKILL.md").write_text("# Malformed\n", encoding="utf-8")
+    (package_dir / "manifest.json").write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", skills_dir)
+
+    with pytest.raises(ValueError, match="must contain a JSON object"):
+        internal_skill_manifest_entries()
+
+
+@pytest.mark.django_db
+def test_skill_catalog_payload_includes_operator_skill_dependency_and_trust_fields() -> None:
+    manifests = {manifest["key"]: manifest for manifest in internal_skill_manifest_entries()}
+    bootstrap_reference_data()
+
+    payload = skill_catalog_payload()
+    by_key = {item["key"]: item for item in payload["items"]}
+
+    gitea = by_key["gitea-operator"]
+    manifest = manifests["gitea-operator"]
+    assert gitea["skill_type"] == manifest["type"]
+    assert gitea["source"] == manifest["source"]
+    assert gitea["trust_status"] == manifest["trust_status"]
+    assert gitea["source_path"] == manifest["source_path"]
+    assert gitea["category"] == manifest["category"]
+    assert gitea["required_integrations"] == manifest["required_integrations"]
+    assert gitea["required_secrets"] == manifest["required_secrets"]
+    assert gitea["required_services"] == manifest["required_services"]
+    assert gitea["permissions"] == manifest["permissions"]
+    assert gitea["entrypoints"] == manifest["entrypoints"]
+    assert gitea["default_enabled"] == manifest["default_enabled"]
+    assert gitea["status"] == "active"
+    assert gitea["dependency_status"]["available"] is False
+    assert "gitea" in gitea["dependency_status"]["missing_integrations"]
+
+
+@pytest.mark.django_db
+def test_update_runtime_skills_persists_stack_permissions_and_detail_payload(runtime_fixture: Runtime) -> None:
+    bootstrap_reference_data()
+
+    update_runtime_skills(
+        runtime_fixture.runtime_id,
+        ["support-triage", "runtime-operator", "support-triage"],
+    )
+    runtime_fixture.refresh_from_db()
+
+    assert runtime_fixture.settings["skill_stack"] == ["support-triage", "runtime-operator"]
+    assert runtime_fixture.settings["skill_permissions"] == ["runtime_read", "runtime_lifecycle"]
+    assert "runtime.start" in runtime_fixture.settings["skill_entrypoints"]
+    assert runtime_fixture.settings["skill_prompt_sections"][0]["key"] == "support-triage"
+
+    detail = runtime_detail_payload(runtime_fixture.runtime_id)
+    assert detail["skills"]["selected_keys"] == ["support-triage", "runtime-operator"]
+    assert any(item["key"] == "runtime-operator" for item in detail["skills"]["catalog"])
 
 
 @pytest.mark.django_db
@@ -357,17 +571,31 @@ def test_runtime_wizard_validate_and_create(operator_client: Client, runtime_fix
     assert validation.json()["valid"] is False
     assert "telegram_bot_token" in validation.json()["errors"]
 
-    monkeypatch.setattr("orchestrator.service_layer.create_or_update_runtime", lambda request, actor=None: runtime_fixture)
+    captured = {}
+
+    def fake_create_or_update_runtime(request, actor=None):
+        captured["request"] = request
+        return runtime_fixture
+
+    monkeypatch.setattr("orchestrator.service_layer.create_or_update_runtime", fake_create_or_update_runtime)
 
     created = operator_client.post(
         "/api/runtime-wizard/create",
-        data=json.dumps({"runtime_id": "new-runtime", "gateway_port": 3100, "model": runtime_fixture.model}),
+        data=json.dumps(
+            {
+                "runtime_id": "new-runtime",
+                "gateway_port": 3100,
+                "model": runtime_fixture.model,
+                "skill_keys": ["support-triage", "runtime-operator"],
+            }
+        ),
         content_type="application/json",
     )
 
     assert created.status_code == 201
     assert created.json()["runtime"]["runtime_id"] == runtime_fixture.runtime_id
     assert created.json()["next_steps"] == ["chat", "diagnostics", "secrets"]
+    assert captured["request"].skill_keys == ["support-triage", "runtime-operator"]
 
 
 @pytest.mark.django_db
@@ -539,6 +767,7 @@ def test_runtime_detail_payload_and_operator_pages_render(operator_client: Clien
     dashboard = operator_client.get("/admin/dashboard/", follow=False)
     runtimes = operator_client.get("/admin/runtimes/", follow=False)
     wizard = operator_client.get("/admin/runtime-wizard/")
+    wizard_skills = operator_client.get("/admin/runtime-wizard/?step=3")
     detail = operator_client.get(f"/admin/runtimes/{runtime_fixture.runtime_id}/")
     diagnostics = operator_client.get(f"/admin/runtimes/{runtime_fixture.runtime_id}/diagnostics/")
     providers = operator_client.get("/admin/providers/")
@@ -552,6 +781,7 @@ def test_runtime_detail_payload_and_operator_pages_render(operator_client: Clien
     assert runtimes.status_code == 302
     assert runtimes.headers["Location"] == "/admin/"
     assert wizard.status_code == 200
+    assert wizard_skills.status_code == 200
     assert detail.status_code == 200
     assert diagnostics.status_code == 200
     assert providers.status_code == 200
@@ -561,7 +791,9 @@ def test_runtime_detail_payload_and_operator_pages_render(operator_client: Clien
     assert b"Aquarium Operator Console" in admin_index.content
     assert b"/admin/domain/runtime/" not in admin_index.content
     assert b"Limits &amp; Keys" in detail.content
+    assert b"Operator Skills" in detail.content
     assert b"Runtime Wizard" in wizard.content
+    assert b"Operator Skills" in wizard_skills.content
     assert b"Diagnostics" in diagnostics.content
     assert b"Providers" in providers.content
     assert b"Secrets" in secrets.content
