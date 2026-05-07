@@ -110,7 +110,28 @@ Trust model for this catalog:
 - executable skills declare capability permissions such as `runtime_lifecycle`, `diagnostics_read`, `litellm_admin`, `secrets_metadata_read`, `gitea_api`, or `kanboard_api`
 - executable skills may use only approved Aquarium adapter entrypoints listed in the catalog metadata
 - no v1 internal skill grants arbitrary shell execution, direct host access, raw secret access, or unreviewed downloaded code execution
-- integration-specific skills remain visible in the catalog but are not default-enabled until their dependency checks are handled by the UI/runtime selection layer
+- integration-specific skills remain visible in the catalog and are disabled by the UI until their declared dependencies are available
+
+Runtime skill selection:
+
+- operator entrypoints: runtime wizard step 3 and the runtime detail `Operator Skills` section
+- API catalog: `GET /api/skills/catalog`
+- runtime create/update API accepts `skill_keys`
+- selected skills are stored in `Runtime.settings`
+- stored keys: `skill_stack`, `skill_permissions`, `skill_entrypoints`, and `skill_prompt_sections`
+- `skill_stack` preserves operator selection order and removes duplicate keys
+- `skill_permissions` and `skill_entrypoints` are derived from reviewed catalog metadata
+- `skill_prompt_sections` stores the selected `SKILL.md` instruction bodies for future runtime prompt/adaptor compilation
+- dependency status is computed from runtime channels, runtime integration records, runtime secret refs, and platform service availability
+
+Current dependency behavior:
+
+- `controlplane`, `infisical`, `litellm`, and `runtime-gateway` are considered available platform services in the local operator flow
+- `monitoring` is available when `monitoring-stack/.env` exists
+- integration dependencies such as `telegram`, `search`, `gitea`, and `kanboard` must be present through runtime channels/settings or integration records
+- secret dependencies are matched against runtime secret refs by backend secret name
+- unavailable skills are shown with concrete missing dependency reasons and cannot be newly selected from the UI
+- already-selected skills remain visible on runtime detail with dependency warnings so an operator can remove or repair them
 
 Current runtime profiles:
 

@@ -171,6 +171,7 @@ See the full guided path in [docs/demo-walkthrough.md](docs/demo-walkthrough.md)
 - `infisical-stack/`: local self-hosted Infisical deployment
 - `litellm-stack/`: LiteLLM gateway and internal admin UI/API
 - `monitoring-stack/`: optional observability stack kept out of the default demo path
+- `skills/`: curated AgentSkills-style operator skill packages used by the control plane
 - `knowledge/`: internal operator memory and source-of-truth
 - `docs/`: public demo-oriented documentation
 - `nullclaw/`: upstream runtime checkout, treated as imported and read-only here
