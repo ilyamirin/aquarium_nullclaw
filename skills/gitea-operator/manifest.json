@@ -1,0 +1,12 @@
+{
+  "key": "gitea-operator",
+  "display_name": "Gitea Operator",
+  "type": "executable",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": ["gitea"],
+  "required_secrets": ["GITEA_TOKEN"],
+  "required_services": ["gitea"],
+  "permissions": ["gitea_api"],
+  "entrypoints": ["gitea.repositories", "gitea.issues", "gitea.pull_requests"]
+}

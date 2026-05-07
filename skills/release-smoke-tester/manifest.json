@@ -1,0 +1,12 @@
+{
+  "key": "release-smoke-tester",
+  "display_name": "Release Smoke Tester",
+  "type": "executable",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": [],
+  "required_secrets": [],
+  "required_services": ["runtime-gateway"],
+  "permissions": ["runtime_read", "integration_test"],
+  "entrypoints": ["runtime.smoke_test", "runtime.config.view", "diagnostics.summary"]
+}

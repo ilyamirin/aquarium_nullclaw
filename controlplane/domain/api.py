@@ -426,6 +426,13 @@ def models_catalog(request: HttpRequest) -> JsonResponse:
     return JsonResponse({"items": items})
 
 
+@_operator_guard
+def skills_catalog(request: HttpRequest) -> JsonResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    return JsonResponse(_service().skill_catalog_payload())
+
+
 @csrf_exempt
 @_operator_guard
 def custom_models_collection(request: HttpRequest) -> JsonResponse:

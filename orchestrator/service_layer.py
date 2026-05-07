@@ -36,6 +36,10 @@ from controlplane.domain.models import (
     RuntimeProfileSlug,
     RuntimeSecretRef,
     SecretKind,
+    SkillCatalogEntry,
+    SkillSource,
+    SkillTrustStatus,
+    SkillType,
     Tenant,
 )
 from orchestrator.compose import write_compose
@@ -162,6 +166,152 @@ INTEGRATION_RUNTIME_CHANNELS: dict[str, str | None] = {
 
 NULLCLAW_MAX_ACTIONS_PER_HOUR = "1000000"
 
+INTERNAL_SKILL_CATALOG: list[dict[str, Any]] = [
+    {
+        "key": "runtime-operator",
+        "display_name": "Runtime Operator",
+        "description": "Start, stop, restart, inspect, and smoke-test Aquarium runtimes through approved control-plane adapters.",
+        "category": "Runtime Operations",
+        "skill_type": SkillType.EXECUTABLE,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": ["controlplane"],
+        "permissions": ["runtime_read", "runtime_lifecycle"],
+        "entrypoints": ["runtime.status", "runtime.start", "runtime.stop", "runtime.restart", "runtime.smoke_test"],
+        "default_enabled": True,
+    },
+    {
+        "key": "incident-analyst",
+        "display_name": "Incident Analyst",
+        "description": "Explain runtime failures from symptoms, status, diagnostics, and recent operator actions.",
+        "category": "Diagnostics",
+        "skill_type": SkillType.HYBRID,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": [],
+        "permissions": ["diagnostics_read"],
+        "entrypoints": ["diagnostics.summary", "actions.recent"],
+        "default_enabled": True,
+    },
+    {
+        "key": "log-trace-investigator",
+        "display_name": "Log Trace Investigator",
+        "description": "Query monitoring backends and summarize likely causes from logs, traces, and metrics.",
+        "category": "Diagnostics",
+        "skill_type": SkillType.EXECUTABLE,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": ["monitoring"],
+        "permissions": ["diagnostics_read"],
+        "entrypoints": ["diagnostics.logs", "diagnostics.traces", "diagnostics.metrics"],
+        "default_enabled": False,
+    },
+    {
+        "key": "litellm-limits-manager",
+        "display_name": "LiteLLM Limits Manager",
+        "description": "Inspect LiteLLM budgets, RPM/TPM limits, key state, and limit-related failures.",
+        "category": "Limits and Secrets",
+        "skill_type": SkillType.EXECUTABLE,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": ["litellm"],
+        "permissions": ["litellm_admin"],
+        "entrypoints": ["litellm.key.inspect", "litellm.limits.read", "litellm.failures"],
+        "default_enabled": False,
+    },
+    {
+        "key": "secret-checker",
+        "display_name": "Secret Checker",
+        "description": "Check missing secrets and secret coverage without exposing raw secret values.",
+        "category": "Limits and Secrets",
+        "skill_type": SkillType.EXECUTABLE,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": ["infisical"],
+        "permissions": ["secrets_metadata_read"],
+        "entrypoints": ["secrets.coverage", "secrets.missing"],
+        "default_enabled": True,
+    },
+    {
+        "key": "telegram-operator",
+        "display_name": "Telegram Operator",
+        "description": "Diagnose Telegram-facing runtime behavior and guide channel-specific setup.",
+        "category": "Channels and Integrations",
+        "skill_type": SkillType.HYBRID,
+        "required_integrations": ["telegram"],
+        "required_secrets": ["TELEGRAM_BOT_TOKEN"],
+        "required_services": [],
+        "permissions": ["diagnostics_read", "integration_test"],
+        "entrypoints": ["telegram.status", "telegram.test", "diagnostics.summary"],
+        "default_enabled": False,
+    },
+    {
+        "key": "release-smoke-tester",
+        "display_name": "Release Smoke Tester",
+        "description": "Run post-create and post-update runtime smoke checks through the runtime gateway.",
+        "category": "Runtime Operations",
+        "skill_type": SkillType.EXECUTABLE,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": ["runtime-gateway"],
+        "permissions": ["runtime_read", "integration_test"],
+        "entrypoints": ["runtime.smoke_test", "runtime.config.view", "diagnostics.summary"],
+        "default_enabled": True,
+    },
+    {
+        "key": "support-triage",
+        "display_name": "Support Triage",
+        "description": "Classify operator or customer requests and suggest concrete next steps.",
+        "category": "Operator Workflow",
+        "skill_type": SkillType.BEHAVIOR,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": [],
+        "permissions": [],
+        "entrypoints": [],
+        "default_enabled": True,
+    },
+    {
+        "key": "ops-reporter",
+        "display_name": "Ops Reporter",
+        "description": "Produce concise status updates, incident summaries, and action reports.",
+        "category": "Operator Workflow",
+        "skill_type": SkillType.BEHAVIOR,
+        "required_integrations": [],
+        "required_secrets": [],
+        "required_services": [],
+        "permissions": [],
+        "entrypoints": [],
+        "default_enabled": True,
+    },
+    {
+        "key": "gitea-operator",
+        "display_name": "Gitea Operator",
+        "description": "Work with configured Gitea repositories, issues, and PR-style workflows through the Gitea adapter.",
+        "category": "Channels and Integrations",
+        "skill_type": SkillType.EXECUTABLE,
+        "required_integrations": ["gitea"],
+        "required_secrets": ["GITEA_TOKEN"],
+        "required_services": ["gitea"],
+        "permissions": ["gitea_api"],
+        "entrypoints": ["gitea.repositories", "gitea.issues", "gitea.pull_requests"],
+        "default_enabled": False,
+    },
+    {
+        "key": "kanboard-operator",
+        "display_name": "Kanboard Operator",
+        "description": "Work with configured Kanboard projects, tasks, columns, and status updates through the Kanboard adapter.",
+        "category": "Channels and Integrations",
+        "skill_type": SkillType.EXECUTABLE,
+        "required_integrations": ["kanboard"],
+        "required_secrets": ["KANBOARD_PASSWORD"],
+        "required_services": ["kanboard"],
+        "permissions": ["kanboard_api"],
+        "entrypoints": ["kanboard.projects", "kanboard.tasks", "kanboard.columns"],
+        "default_enabled": False,
+    },
+]
+
 
 def ensure_controlplane_ready() -> None:
     setup_django()
@@ -180,6 +330,55 @@ def bootstrap_reference_data() -> None:
         RuntimeProfile.objects.get_or_create(slug=slug, defaults={"display_name": name})
     Tenant.objects.get_or_create(slug="default", defaults={"name": "Default Tenant"})
     Plan.objects.get_or_create(slug="default", defaults={"display_name": "Default Plan"})
+    bootstrap_internal_skill_catalog()
+
+
+def bootstrap_internal_skill_catalog() -> None:
+    for skill in INTERNAL_SKILL_CATALOG:
+        source_path = f"skills/{skill['key']}/SKILL.md"
+        defaults = {
+            **skill,
+            "source_path": source_path,
+            "source": SkillSource.INTERNAL,
+            "trust_status": SkillTrustStatus.INTERNAL,
+            "source_url": "",
+            "status": "active",
+        }
+        defaults.pop("key")
+        SkillCatalogEntry.objects.update_or_create(key=skill["key"], defaults=defaults)
+
+
+def _skill_catalog_entry_payload(skill: SkillCatalogEntry) -> dict[str, Any]:
+    return {
+        "key": skill.key,
+        "display_name": skill.display_name,
+        "description": skill.description,
+        "category": skill.category,
+        "source_path": skill.source_path,
+        "compatibility_rules": skill.compatibility_rules,
+        "default_enabled": skill.default_enabled,
+        "status": skill.status,
+        "skill_type": skill.skill_type,
+        "source": skill.source,
+        "trust_status": skill.trust_status,
+        "source_url": skill.source_url,
+        "required_integrations": skill.required_integrations,
+        "required_secrets": skill.required_secrets,
+        "required_services": skill.required_services,
+        "permissions": skill.permissions,
+        "entrypoints": skill.entrypoints,
+    }
+
+
+def skill_catalog_entries(*, include_disabled: bool = False) -> list[SkillCatalogEntry]:
+    queryset = SkillCatalogEntry.objects.all()
+    if not include_disabled:
+        queryset = queryset.filter(status="active")
+    return list(queryset.order_by("category", "display_name", "key"))
+
+
+def skill_catalog_payload(*, include_disabled: bool = False) -> dict[str, Any]:
+    return {"items": [_skill_catalog_entry_payload(skill) for skill in skill_catalog_entries(include_disabled=include_disabled)]}
 
 
 def import_json_state_if_empty() -> None:

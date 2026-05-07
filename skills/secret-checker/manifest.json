@@ -1,0 +1,12 @@
+{
+  "key": "secret-checker",
+  "display_name": "Secret Checker",
+  "type": "executable",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": [],
+  "required_secrets": [],
+  "required_services": ["infisical"],
+  "permissions": ["secrets_metadata_read"],
+  "entrypoints": ["secrets.coverage", "secrets.missing"]
+}

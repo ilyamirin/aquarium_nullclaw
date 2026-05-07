@@ -73,6 +73,45 @@ Core models:
 
 Internal skill entries default to `skill_type=behavior`, `source=internal`, and `trust_status=internal`. External import code must explicitly set external sources to `trust_status=quarantine` before any future review flow enables them.
 
+Curated internal operator skills are tracked source, not database-only seed data:
+
+- package source of truth: [skills](/Users/ilyagmirin/PycharmProjects/aquarium/skills)
+- bootstrap metadata source: [orchestrator/service_layer.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/service_layer.py)
+- API surface: `GET /api/skills/catalog`
+
+Each internal package follows the AgentSkills-style layout:
+
+```text
+skills/<skill-key>/
+  SKILL.md
+  manifest.json
+  README.md
+```
+
+`SKILL.md` is the agent-facing operator instruction. `manifest.json` mirrors machine-readable metadata such as dependencies, permissions, and adapter entrypoints. The Django bootstrap path upserts the same metadata into `SkillCatalogEntry` through `bootstrap_reference_data()`, so repeated startup/import/migration flows do not create duplicates.
+
+The v1 internal catalog contains:
+
+- `runtime-operator`
+- `incident-analyst`
+- `log-trace-investigator`
+- `litellm-limits-manager`
+- `secret-checker`
+- `telegram-operator`
+- `release-smoke-tester`
+- `support-triage`
+- `ops-reporter`
+- `gitea-operator`
+- `kanboard-operator`
+
+Trust model for this catalog:
+
+- internal packages always use `source=internal`, `trust_status=internal`, and `status=active`
+- executable skills declare capability permissions such as `runtime_lifecycle`, `diagnostics_read`, `litellm_admin`, `secrets_metadata_read`, `gitea_api`, or `kanboard_api`
+- executable skills may use only approved Aquarium adapter entrypoints listed in the catalog metadata
+- no v1 internal skill grants arbitrary shell execution, direct host access, raw secret access, or unreviewed downloaded code execution
+- integration-specific skills remain visible in the catalog but are not default-enabled until their dependency checks are handled by the UI/runtime selection layer
+
 Current runtime profiles:
 
 - `live`

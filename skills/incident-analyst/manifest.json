@@ -1,0 +1,12 @@
+{
+  "key": "incident-analyst",
+  "display_name": "Incident Analyst",
+  "type": "hybrid",
+  "source": "internal",
+  "trust_status": "internal",
+  "required_integrations": [],
+  "required_secrets": [],
+  "required_services": [],
+  "permissions": ["diagnostics_read"],
+  "entrypoints": ["diagnostics.summary", "actions.recent"]
+}
