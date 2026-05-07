@@ -29,6 +29,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .venv/
+.worktrees/
 .python-version
 *.egg-info/
 
