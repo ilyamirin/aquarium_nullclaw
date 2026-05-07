@@ -91,7 +91,8 @@ It uses `curl -k --resolve ... https://...` so health validation still works eve
 - The containerized Django control plane now runs `python manage.py migrate --noinput` on startup before `runserver` so SSO traffic does not land on an unmigrated SQLite database.
 - Grafana is configured for proxy-auth and should be entered through the perimeter route.
 - `Infisical` still keeps its loopback API port for host-side control-plane and CLI usage, but the supported browser entry is the perimeter route.
+- `Infisical` is deliberately perimeter-gated only in v1. Aquarium does not require an app-level Infisical SSO bridge for the current single-operator local platform. After the outer Authelia gate, Infisical may still show its own login, signup, and organization administration flows; that is accepted because Infisical remains the secret source-of-truth with its own internal authorization model.
 - Current verified browser behavior:
   - `Authelia -> Django control plane` SSO works end-to-end.
-  - `Infisical` is perimeter-gated, but still falls through to its own first-run signup/auth flow after the outer SSO gate.
-  - `Grafana` is perimeter-gated, but its operator-health probe path remains sensitive to the local Docker networking layout and should be verified after perimeter changes.
+  - `Infisical` is perimeter-gated, with app-native Infisical auth/admin behavior behind the gate by design.
+  - `Grafana` is perimeter-gated and the Caddy upstream path should be validated after monitoring bootstrap or Docker-network changes.

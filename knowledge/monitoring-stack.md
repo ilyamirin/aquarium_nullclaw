@@ -132,6 +132,7 @@ Tracked bootstrap/runtime helpers:
 
 - Grafana is perimeter-gated by `Authelia` and configured for proxy-auth using the forwarded `Remote-User` header.
 - The monitoring stack keeps the loopback host port `13000` for local health/debug access, but the supported operator browser path is the perimeter route.
+- The perimeter Caddy upstream reaches Grafana by Docker service/container name on the shared `aquarium-perimeter` network. If the browser route shows an upstream failure, first verify Grafana itself is running and that `aquarium-perimeter-caddy-1` can fetch `http://aquarium-grafana:3000/api/health`.
 
 Ignored local state:
 
@@ -174,10 +175,12 @@ If monitoring is added later, rerun `runtime create` for each runtime you want t
 
 Operator-facing UI endpoint:
 
-- Grafana: `http://grafana.aquarium.local`
+- Grafana: `https://grafana.aquarium.local`
+- local browser alias: `https://grafana.lvh.me`
 
 Internal and health-check endpoints:
 
+- Grafana direct health/debug: `http://127.0.0.1:13000`
 - Alloy UI: `http://127.0.0.1:12345`
 - Loki: `http://127.0.0.1:13100`
 - Tempo: `http://127.0.0.1:13200`
@@ -216,6 +219,38 @@ Current deliberate omissions:
 - no Postgres exporter
 - no Redis exporter
 - no cAdvisor on macOS by default
+
+## Grafana Upstream Recovery
+
+If `Open Grafana` or the perimeter route is red while the Caddy route exists, separate the checks:
+
+1. Direct Grafana health:
+
+   ```bash
+   curl -fsS http://127.0.0.1:13000/api/health
+   ```
+
+2. Caddy-to-Grafana upstream from inside the perimeter network:
+
+   ```bash
+   docker exec aquarium-perimeter-caddy-1 wget -qO- http://aquarium-grafana:3000/api/health
+   ```
+
+3. Control-plane monitoring payload:
+
+   ```bash
+   docker exec aquarium-perimeter-controlplane-1 python -c "from orchestrator.service_layer import monitoring_surface_payload; print(monitoring_surface_payload())"
+   ```
+
+The common local failure mode after Infisical data is reset is a stale `INFISICAL_TOKEN` in `monitoring-stack/.env`. Grafana then restart-loops because its entrypoint cannot fetch `GF_SECURITY_ADMIN_PASSWORD` and `GF_SECURITY_SECRET_KEY` from the `monitoring-core` project.
+
+Recovery path:
+
+1. Ensure Infisical has an admin user and organization. If the local DB is empty, bootstrap Infisical before continuing.
+2. Export a valid `INFISICAL_ADMIN_TOKEN` for that organization.
+3. Run `make monitoring-bootstrap` to recreate the `monitoring-core` project material and rewrite `monitoring-stack/.env`.
+4. Run `make monitoring-up`.
+5. Verify direct health, Caddy upstream health, and the control-plane monitoring payload before debugging Caddy routing.
 
 ## Operator Workflow
 

@@ -139,6 +139,14 @@ Default demo surfaces:
 - Control plane: [http://127.0.0.1:15000/admin/](http://127.0.0.1:15000/admin/)
 - `test-nullclaw` health: [http://127.0.0.1:3000/health](http://127.0.0.1:3000/health)
 
+SSO perimeter surfaces:
+
+- Control plane: [https://app.aquarium.local](https://app.aquarium.local)
+- Grafana: [https://grafana.aquarium.local](https://grafana.aquarium.local)
+- Infisical: [https://secrets.aquarium.local](https://secrets.aquarium.local)
+
+The supported operator browser path is the Authelia-protected perimeter. Grafana uses proxy auth behind that gate. Infisical is intentionally perimeter-gated only in v1: after the outer Authelia session is accepted, Infisical keeps its own internal app auth and secret-administration model. A deeper app-level Infisical SSO bridge is not required for this local single-operator platform phase.
+
 The bootstrap operator account for the local control plane is:
 
 - username: `admin`
