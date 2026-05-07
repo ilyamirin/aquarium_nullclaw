@@ -85,6 +85,7 @@ Important networking detail:
 
 - the host-side control plane talks to Infisical at `http://127.0.0.1:18080`
 - containers must talk to Infisical at `http://host.docker.internal:18080`
+- the supported browser UI entry is now `http://secrets.aquarium.local`
 
 The orchestrator rewrites loopback host URLs to container-facing host URLs when it writes runtime env files and LiteLLM stack env.
 

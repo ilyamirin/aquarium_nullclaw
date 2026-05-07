@@ -14,6 +14,7 @@ Use the two layers intentionally:
 Current platform shape:
 
 - `Authelia` is the intended SSO boundary for the control plane
+- `Caddy + Authelia` is the intended perimeter for operator-facing web UIs
 - `Agent` is becoming the primary product object in the UI/API
 - `NullClaw` is the hosted runtime
 - `LiteLLM` is the mandatory LLM gateway
@@ -38,6 +39,8 @@ If you want the public demo story first, start with:
   Primary control-plane document: local state layout, generated compose, CLI commands, and runtime lifecycle rules.
 - [controlplane.md](controlplane.md)
   Django + Unfold web control plane, DB-backed state model, Authelia-compatible entrypoints, agent-first UI/API, and management commands.
+- [perimeter-stack.md](perimeter-stack.md)
+  Shared Caddy + Authelia perimeter, `*.aquarium.local` routing, bootstrap flow, and the operator-facing web entry contract.
 - [litellm-gateway.md](litellm-gateway.md)
   LiteLLM-first gateway model, provider boundary, runtime keys, bootstrap flow, UI/API access, budgets, and current compatibility findings.
 - [administration.md](administration.md)

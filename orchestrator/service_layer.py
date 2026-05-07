@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -641,8 +642,6 @@ def mirror_json_state() -> None:
     from orchestrator.state import save_state
 
     save_state(_state_from_db())
-
-
 def _workspace_subject(actor: Any = None) -> str:
     if actor is not None and getattr(actor, "username", ""):
         return str(actor.username)
@@ -1875,23 +1874,37 @@ def _monitoring_env() -> dict[str, str]:
     return read_env_file(Path("monitoring-stack/.env"))
 
 
+def public_surface_payload() -> dict[str, str]:
+    return {
+        "app_url": os.environ.get("CONTROLPLANE_PUBLIC_URL", "https://app.aquarium.local"),
+        "grafana_url": os.environ.get("GRAFANA_PUBLIC_URL", "https://grafana.aquarium.local"),
+        "secrets_url": os.environ.get("SECRETS_PUBLIC_URL", "https://secrets.aquarium.local"),
+        "auth_url": os.environ.get("AUTHELIA_PUBLIC_URL", "https://auth.aquarium.local"),
+    }
+
+
 def monitoring_surface_payload() -> dict[str, Any]:
+    surfaces = public_surface_payload()
     env = _monitoring_env()
-    grafana_port = env.get("GRAFANA_PORT", "13000")
-    url = f"http://127.0.0.1:{grafana_port}"
+    probe_url = os.environ.get("GRAFANA_INTERNAL_URL") or env.get("GRAFANA_INTERNAL_URL")
+    if not probe_url:
+        grafana_port = env.get("GRAFANA_PORT", "13000")
+        probe_url = f"http://127.0.0.1:{grafana_port}"
     if not env:
         return {
-            "url": url,
+            "url": surfaces["grafana_url"],
+            "probe_url": probe_url,
             "available": False,
             "healthy": False,
             "label": "Grafana offline",
             "reason": "Monitoring stack is not bootstrapped.",
         }
     try:
-        response = requests.get(f"{url}/api/health", timeout=2)
+        response = requests.get(f"{probe_url}/api/health", timeout=2)
         response.raise_for_status()
         return {
-            "url": url,
+            "url": surfaces["grafana_url"],
+            "probe_url": probe_url,
             "available": True,
             "healthy": True,
             "label": "Open Grafana",
@@ -1899,7 +1912,8 @@ def monitoring_surface_payload() -> dict[str, Any]:
         }
     except requests.RequestException as exc:
         return {
-            "url": url,
+            "url": surfaces["grafana_url"],
+            "probe_url": probe_url,
             "available": False,
             "healthy": False,
             "label": "Grafana offline",
@@ -2017,8 +2031,8 @@ def _mimir_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _diagnostics_links(runtime: Runtime) -> dict[str, str]:
+    surfaces = public_surface_payload()
     env = _monitoring_env()
-    grafana_port = env.get("GRAFANA_PORT", "13000")
     loki_port = env.get("LOKI_PORT", "13100")
     tempo_port = env.get("TEMPO_PORT", "13200")
     mimir_port = env.get("MIMIR_PORT", "13300")
@@ -2026,7 +2040,7 @@ def _diagnostics_links(runtime: Runtime) -> dict[str, str]:
     trace_query = quote(f'{{resource.service.name="nullclaw-{runtime.runtime_id}"}} with (most_recent=true)')
     metric_query = quote(f'probe_success{{service="nullclaw-{runtime.runtime_id}"}}')
     return {
-        "grafana": f"http://127.0.0.1:{grafana_port}",
+        "grafana": surfaces["grafana_url"],
         "loki": f"http://127.0.0.1:{loki_port}/loki/api/v1/query_range?query={logs_query}&limit=50",
         "tempo": f"http://127.0.0.1:{tempo_port}/api/search?query={trace_query}",
         "mimir": f"http://127.0.0.1:{mimir_port}/prometheus/api/v1/query?query={metric_query}",

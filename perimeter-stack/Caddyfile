@@ -1,0 +1,38 @@
+{
+	admin off
+	local_certs
+}
+
+(authelia_gate) {
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+}
+
+app.aquarium.local, app.lvh.me {
+	import authelia_gate
+	tls internal
+	reverse_proxy controlplane:8000 {
+		header_up Remote-User {header.Remote-User}
+	}
+}
+
+auth.aquarium.local, auth.lvh.me {
+	tls internal
+	reverse_proxy authelia:9091
+}
+
+grafana.aquarium.local, grafana.lvh.me {
+	import authelia_gate
+	tls internal
+	reverse_proxy aquarium-grafana:3000 {
+		header_up Remote-User {header.Remote-User}
+	}
+}
+
+secrets.aquarium.local, secrets.lvh.me {
+	import authelia_gate
+	tls internal
+	reverse_proxy backend:8080
+}

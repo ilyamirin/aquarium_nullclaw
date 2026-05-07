@@ -2,6 +2,11 @@
   <form method="post" class="op-form js-agent-builder-form">
     {% csrf_token %}
     <input type="hidden" name="action" value="{{ agent_form_action|default:'create_agent_inline' }}">
+    {% if workspace_secret_error %}
+    <div class="op-banner warning">
+      Workspace secret metadata is temporarily unavailable: {{ workspace_secret_error }}. You can still edit the draft shape, but secret-backed launch paths will stay blocked until the secret backend is reachable.
+    </div>
+    {% endif %}
     <div class="op-grid cols-2">
       <label>
         <span class="op-label">Name</span>

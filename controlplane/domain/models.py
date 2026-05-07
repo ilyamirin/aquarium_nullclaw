@@ -143,8 +143,6 @@ class SkillTrustStatus(models.TextChoices):
     REVIEWED = "reviewed", "Reviewed"
     QUARANTINE = "quarantine", "Quarantine"
     BLOCKED = "blocked", "Blocked"
-
-
 class Tenant(TimestampedModel):
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=255)

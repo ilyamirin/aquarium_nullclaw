@@ -1,0 +1,7 @@
+users:
+  admin:
+    displayname: Aquarium Admin
+    email: admin@aquarium.local
+    password: "<set-a-local-password-hash-before-use>"
+    groups:
+      - admins

@@ -49,11 +49,12 @@
       <a href="/admin/models/" class="op-button secondary">Models</a>
       <a href="/admin/integrations/" class="op-button secondary">Integrations</a>
       <a href="/admin/secrets/" class="op-button secondary">Secrets</a>
+      <a href="{{ secrets_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Infisical</a>
     </div>
   </article>
   <article class="op-card">
     <h2>Observability</h2>
-    <p class="op-note">Control plane summaries stay here. Deep traces, logs and metrics stay in the monitoring stack.</p>
+    <p class="op-note">Control plane summaries stay here. Deep traces, logs and metrics stay in the monitoring stack behind the perimeter.</p>
     <div class="op-actions">
       {% if monitoring.available %}
       <a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Grafana</a>

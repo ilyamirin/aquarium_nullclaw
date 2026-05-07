@@ -52,6 +52,7 @@ from orchestrator.service_layer import (
     runtime_config_view,
     runtime_detail_payload,
     skill_catalog_payload,
+    public_surface_payload,
     stop_agent,
     test_runtime_secret as service_test_runtime_secret,
     update_runtime_limits,
@@ -826,6 +827,124 @@ def test_admin_home_is_read_only(operator_client: Client, runtime_fixture: Runti
     assert b"demo-runtime" in response.content
     assert b"Grafana offline" in response.content
     assert b">Offline<" in response.content
+def test_controlplane_public_base_url_defaults_to_aquarium_subdomain(settings) -> None:
+    from controlplane.core import settings as controlplane_settings
+
+    assert controlplane_settings.CONTROLPLANE_PUBLIC_URL == "https://app.aquarium.local"
+
+
+@pytest.mark.django_db
+def test_operator_home_prefers_perimeter_links(operator_client: Client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "orchestrator.service_layer.monitoring_surface_payload",
+        lambda: {
+            "url": "https://grafana.aquarium.local",
+            "probe_url": "http://127.0.0.1:13000",
+            "available": True,
+            "healthy": True,
+            "label": "Open Grafana",
+            "reason": "",
+        },
+    )
+    response = operator_client.get("/admin/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert 'href="https://grafana.aquarium.local"' in body
+    assert '>Grafana</a>' in body
+    assert 'href="https://secrets.aquarium.local"' in body
+    assert '>Infisical</a>' in body
+
+
+@pytest.mark.django_db
+def test_admin_login_redirects_into_sso(client: Client) -> None:
+    response = client.get("/admin/login/?next=/admin/", follow=False)
+
+    assert response.status_code == 302
+    assert response["Location"] == "https://auth.aquarium.local/?rd=%2Fadmin%2F"
+
+
+@pytest.mark.django_db
+def test_login_view_uses_authelia_redirect_target(client: Client, settings) -> None:
+    settings.AUTHELIA_LOGIN_URL = "https://auth.aquarium.local/?rd="
+
+    response = client.get("/auth/login/?next=/admin/runtimes/test-nullclaw/", follow=False)
+
+    assert response.status_code == 302
+    assert response["Location"] == "https://auth.aquarium.local/?rd=%2Fadmin%2Fruntimes%2Ftest-nullclaw%2F"
+
+
+@pytest.mark.django_db
+def test_runtime_detail_grafana_link_uses_public_subdomain(
+    operator_client: Client, runtime_fixture: Runtime, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "orchestrator.service_layer.refresh_runtime_diagnostics",
+        lambda runtime_id: (_ for _ in ()).throw(AssertionError("GET runtime detail must not refresh diagnostics")),
+    )
+    monkeypatch.setattr(
+        "orchestrator.service_layer.runtime_secret_check",
+        lambda runtime_id: (_ for _ in ()).throw(AssertionError("GET runtime detail must not verify secrets")),
+    )
+
+    response = operator_client.get(f"/admin/runtimes/{runtime_fixture.runtime_id}/")
+
+    assert response.status_code == 200
+    assert 'href="https://grafana.aquarium.local"' in response.content.decode()
+
+
+def test_public_surface_payload_uses_perimeter_urls(monkeypatch) -> None:
+    monkeypatch.delenv("CONTROLPLANE_PUBLIC_URL", raising=False)
+    monkeypatch.delenv("GRAFANA_PUBLIC_URL", raising=False)
+    monkeypatch.delenv("SECRETS_PUBLIC_URL", raising=False)
+    monkeypatch.delenv("AUTHELIA_PUBLIC_URL", raising=False)
+
+    payload = public_surface_payload()
+
+    assert payload == {
+        "app_url": "https://app.aquarium.local",
+        "grafana_url": "https://grafana.aquarium.local",
+        "secrets_url": "https://secrets.aquarium.local",
+        "auth_url": "https://auth.aquarium.local",
+    }
+
+
+@pytest.mark.django_db
+def test_operator_home_does_not_render_direct_grafana_link(operator_client: Client) -> None:
+    response = operator_client.get("/admin/")
+
+    assert response.status_code == 200
+    assert "Direct Grafana" not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_agent_wizard_survives_workspace_secret_backend_outage(operator_client: Client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "orchestrator.service_layer.list_workspace_secrets",
+        lambda actor=None: (_ for _ in ()).throw(RuntimeError("operator token missing")),
+    )
+
+    response = operator_client.get("/admin/agents/new/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Workspace secret metadata is temporarily unavailable" in body
+    assert "operator token missing" in body
+
+
+@pytest.mark.django_db
+def test_workspace_vault_survives_workspace_secret_backend_outage(operator_client: Client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "orchestrator.service_layer.list_workspace_secrets",
+        lambda actor=None: (_ for _ in ()).throw(RuntimeError("operator token missing")),
+    )
+
+    response = operator_client.get("/admin/vault/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Workspace secret metadata is temporarily unavailable" in body
+    assert "operator token missing" in body
 
 
 @pytest.mark.django_db

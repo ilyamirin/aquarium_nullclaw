@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib import messages
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -54,10 +55,6 @@ def _selected_int(value: str | None) -> int | None:
         return None
 
 
-def _grafana_url() -> str:
-    return "http://127.0.0.1:13000"
-
-
 def _operator_context(*, title: str, active_page: str, page_description: str, **extra: Any) -> dict[str, Any]:
     monitoring = _service().monitoring_surface_payload()
     context = {
@@ -66,14 +63,23 @@ def _operator_context(*, title: str, active_page: str, page_description: str, **
         "page_description": page_description,
         "grafana_url": monitoring["url"],
         "monitoring": monitoring,
+        "controlplane_public_url": settings.CONTROLPLANE_PUBLIC_URL,
+        "secrets_url": settings.SECRETS_PUBLIC_URL,
     }
     context.update(extra)
     return context
 
 
 def _agent_builder_context(*, actor: Any = None) -> dict[str, Any]:
+    workspace_secrets = []
+    workspace_secret_error = ""
+    try:
+        workspace_secrets = _service().list_workspace_secrets(actor=actor)
+    except Exception as exc:  # noqa: BLE001
+        workspace_secret_error = str(exc)
     return {
-        "workspace_secrets": _service().list_workspace_secrets(actor=actor),
+        "workspace_secrets": workspace_secrets,
+        "workspace_secret_error": workspace_secret_error,
         "agent_models": ProviderModel.objects.filter(is_enabled=True).order_by("alias"),
         "skill_catalog": _service().skill_catalog_entries(),
         "personality_presets": PERSONALITY_PRESETS,
@@ -100,10 +106,13 @@ def _agent_nav(agent_slug: str, active: str) -> list[dict[str, str | bool]]:
 def _operator_home_context(*, actor: Any = None) -> dict[str, Any]:
     runtimes = _service().list_runtimes()
     agents = _service().list_agents()
+    monitoring = _service().monitoring_surface_payload()
     return _operator_context(
         title="Aquarium Operator Console",
         active_page="home",
         page_description="Единая операторская точка входа для runtime lifecycle, конфигурации, секретов и диагностики.",
+        monitoring=monitoring,
+        monitoring_direct_url=monitoring["url"],
         agents=agents,
         agent_details=[_service().agent_payload(agent) for agent in agents],
         agent_count=len(agents),
@@ -404,6 +413,12 @@ def agent_studio_view(request: HttpRequest, agent_slug: str) -> HttpResponse:
 
 
 def workspace_vault_view(request: HttpRequest) -> HttpResponse:
+    secrets: list[Any] = []
+    secret_error = ""
+    try:
+        secrets = _service().list_workspace_secrets(actor=request.user)
+    except Exception as exc:  # noqa: BLE001
+        secret_error = str(exc)
     return render(
         request,
         "admin/workspace_vault.html",
@@ -411,7 +426,8 @@ def workspace_vault_view(request: HttpRequest) -> HttpResponse:
             title="Workspace Vault",
             active_page="workspace-vault",
             page_description="Workspace-scoped secret metadata with write-only values backed by the current secret storage layer.",
-            secrets=_service().list_workspace_secrets(actor=request.user),
+            secrets=secrets,
+            secret_error=secret_error,
         ),
     )
 

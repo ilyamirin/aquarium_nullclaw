@@ -4,6 +4,11 @@
 <section class="op-card">
   <h2>Workspace Vault</h2>
   <p class="op-note">Secret values remain write-only. This view shows metadata and binding targets only.</p>
+  {% if secret_error %}
+  <div class="op-banner warning">
+    Workspace secret metadata is temporarily unavailable: {{ secret_error }}. Re-authenticate the operator token or restore the secret backend before rotating or rebinding secrets.
+  </div>
+  {% endif %}
   {% if secrets %}
   <table class="op-table">
     <thead>

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
@@ -35,8 +35,18 @@ class AutheliaRemoteUserMiddleware:
 def authelia_login_view(request: HttpRequest) -> HttpResponse:
     next_url = request.GET.get("next") or getattr(settings, "AUTHELIA_DEFAULT_REDIRECT", "/admin/")
     target = getattr(settings, "AUTHELIA_LOGIN_URL", "/")
+    encoded_next = quote(next_url, safe="")
+    if "{next}" in target:
+        return redirect(target.replace("{next}", encoded_next))
+    if target.endswith("rd="):
+        return redirect(f"{target}{encoded_next}")
     if target.startswith("/"):
-        return redirect(target)
+        query = urlencode({"next": next_url})
+        separator = "&" if "?" in target else "?"
+        return redirect(f"{target}{separator}{query}")
+    parsed = urlsplit(target)
+    if not parsed.path:
+        target = urlunsplit((parsed.scheme, parsed.netloc, "/", parsed.query, parsed.fragment))
     query = urlencode({"rd": next_url})
     separator = "&" if "?" in target else "?"
     return redirect(f"{target}{separator}{query}")

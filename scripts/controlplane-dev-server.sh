@@ -12,7 +12,7 @@ PID_FILE="$PID_DIR/controlplane.pid"
 LOG_FILE="$LOG_DIR/controlplane.log"
 
 is_responding() {
-  curl -fsS http://127.0.0.1:15000/admin/login/ >/dev/null 2>&1
+  curl -fsS http://127.0.0.1:15000/auth/login/ >/dev/null 2>&1
 }
 
 is_running() {
@@ -29,7 +29,7 @@ start_server() {
     exit 0
   fi
   if is_responding; then
-    echo "controlplane already responding on http://127.0.0.1:15000/admin/"
+    echo "controlplane already responding on http://127.0.0.1:15000/ (official SSO entry is https://app.aquarium.local/)"
     exit 0
   fi
   rm -f "$PID_FILE"
@@ -43,10 +43,10 @@ start_server() {
     exit 1
   fi
   if kill -0 "$PID" 2>/dev/null; then
-    echo "controlplane started on http://127.0.0.1:15000/admin/ (pid $PID)"
+    echo "controlplane started on http://127.0.0.1:15000/ (official SSO entry is https://app.aquarium.local/, pid $PID)"
   else
     rm -f "$PID_FILE"
-    echo "controlplane already responding on http://127.0.0.1:15000/admin/"
+    echo "controlplane already responding on http://127.0.0.1:15000/ (official SSO entry is https://app.aquarium.local/)"
   fi
 }
 
@@ -70,7 +70,7 @@ status_server() {
   if is_running; then
     echo "controlplane running with pid $(cat "$PID_FILE")"
   elif is_responding; then
-    echo "controlplane responding on http://127.0.0.1:15000/admin/ (external process)"
+    echo "controlplane responding on http://127.0.0.1:15000/ (external process, official SSO entry is https://app.aquarium.local/)"
   else
     echo "controlplane not running" >&2
     exit 1

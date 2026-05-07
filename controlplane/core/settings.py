@@ -7,7 +7,13 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[2]
 SECRET_KEY = os.environ.get("CONTROLPLANE_SECRET_KEY", "aquarium-controlplane-dev-secret-key")
 DEBUG = os.environ.get("CONTROLPLANE_DEBUG", "true").lower() == "true"
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+CONTROLPLANE_PUBLIC_URL = os.environ.get("CONTROLPLANE_PUBLIC_URL", "https://app.aquarium.local")
+GRAFANA_PUBLIC_URL = os.environ.get("GRAFANA_PUBLIC_URL", "https://grafana.aquarium.local")
+SECRETS_PUBLIC_URL = os.environ.get("SECRETS_PUBLIC_URL", "https://secrets.aquarium.local")
+AUTHELIA_PUBLIC_URL = os.environ.get("AUTHELIA_PUBLIC_URL", "https://auth.aquarium.local")
+
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "app.aquarium.local", "app.lvh.me"]
+CSRF_TRUSTED_ORIGINS = [CONTROLPLANE_PUBLIC_URL]
 
 INSTALLED_APPS = [
     "unfold",
@@ -73,8 +79,8 @@ STATIC_ROOT = BASE_DIR / ".aquarium" / "state" / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTHELIA_HEADER_USER = os.environ.get("AUTHELIA_HEADER_USER", "HTTP_REMOTE_USER")
-AUTHELIA_LOGIN_URL = os.environ.get("AUTHELIA_LOGIN_URL", "/admin/login/")
-AUTHELIA_LOGOUT_URL = os.environ.get("AUTHELIA_LOGOUT_URL", AUTHELIA_LOGIN_URL)
+AUTHELIA_LOGIN_URL = os.environ.get("AUTHELIA_LOGIN_URL", AUTHELIA_PUBLIC_URL)
+AUTHELIA_LOGOUT_URL = os.environ.get("AUTHELIA_LOGOUT_URL", f"{AUTHELIA_PUBLIC_URL}/logout")
 AUTHELIA_DEFAULT_REDIRECT = os.environ.get("AUTHELIA_DEFAULT_REDIRECT", "/admin/")
 LOGIN_URL = "/auth/login/"
 LOGIN_REDIRECT_URL = "/admin/"
