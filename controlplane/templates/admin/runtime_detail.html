@@ -25,6 +25,42 @@
   </article>
 </section>
 
+<section class="op-card">
+  <h2>Operator Skills</h2>
+  <p class="op-note">Selected skills are stored in runtime settings as an auditable skill stack. Executable skills expose only approved Aquarium capability adapters.</p>
+  <form method="post" class="op-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="update_skills">
+    <div class="op-grid cols-2">
+      {% for skill in detail.skills.catalog %}
+      <label class="op-check op-card op-card-compact">
+        <input
+          type="checkbox"
+          name="skill_keys"
+          value="{{ skill.key }}"
+          {% if skill.key in detail.skills.selected_keys %}checked{% endif %}
+          {% if not skill.dependency_status.available and skill.key not in detail.skills.selected_keys %}disabled{% endif %}
+        >
+        <span>
+          <strong>{{ skill.display_name }}</strong>
+          <span class="op-badge neutral">{{ skill.skill_type }}</span>
+          <span class="op-badge neutral">{{ skill.trust_status }}</span><br>
+          <span class="op-note">{{ skill.description }}</span>
+          {% if not skill.dependency_status.available %}
+          <br><span class="op-note">Dependency warning: {{ skill.dependency_status.reasons|join:", " }}</span>
+          {% endif %}
+        </span>
+      </label>
+      {% empty %}
+      <div class="op-empty">No curated skills available.</div>
+      {% endfor %}
+    </div>
+    <div class="op-actions">
+      <button class="op-button primary" type="submit">Update Skills</button>
+    </div>
+  </form>
+</section>
+
 <section class="op-grid cols-2">
   <article class="op-card">
     <h2>Overview</h2>

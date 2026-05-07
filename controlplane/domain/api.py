@@ -70,6 +70,7 @@ def runtimes_collection(request: HttpRequest) -> JsonResponse:
                 tpm_limit=payload.get("tpm_limit"),
                 tenant_slug=payload.get("tenant"),
                 plan_slug=payload.get("plan"),
+                skill_keys=payload.get("skill_keys"),
             ),
             actor=request.user,
         )
@@ -99,6 +100,7 @@ def runtime_detail(request: HttpRequest, runtime_id: str) -> JsonResponse:
                 tpm_limit=payload.get("tpm_limit", runtime.litellm_tpm_limit),
                 tenant_slug=payload.get("tenant", runtime.tenant.slug if runtime.tenant else None),
                 plan_slug=payload.get("plan", runtime.plan.slug if runtime.plan else None),
+                skill_keys=payload.get("skill_keys") if "skill_keys" in payload else None,
             ),
             actor=request.user,
         )
@@ -482,6 +484,7 @@ def runtime_wizard_options(request: HttpRequest) -> JsonResponse:
             "profiles": ["live", "probe", "limit-probe", "playground", "custom"],
             "providers": _service().provider_connections_catalog(),
             "models": [{"alias": model.alias, "display_name": model.display_name} for model in _service().models_catalog()],
+            "skills": _service().skill_catalog_payload()["items"],
         }
     )
 
@@ -522,6 +525,9 @@ def runtime_wizard_create(request: HttpRequest) -> JsonResponse:
             tpm_limit=payload.get("tpm_limit"),
             tenant_slug=payload.get("tenant"),
             plan_slug=payload.get("plan"),
+            desired_channels=payload.get("desired_channels"),
+            settings=payload.get("settings"),
+            skill_keys=payload.get("skill_keys"),
         ),
         actor=request.user,
     )

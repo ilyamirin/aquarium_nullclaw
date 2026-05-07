@@ -40,9 +40,11 @@ from orchestrator.service_layer import (
     import_json_state_if_empty,
     internal_skill_manifest_entries,
     runtime_config_view,
+    runtime_detail_payload,
     skill_catalog_payload,
     test_runtime_secret as service_test_runtime_secret,
     update_runtime_limits,
+    update_runtime_skills,
     upsert_integration_connection,
     upsert_runtime_secret,
 )
@@ -312,6 +314,28 @@ def test_skill_catalog_payload_includes_operator_skill_dependency_and_trust_fiel
     assert gitea["entrypoints"] == manifest["entrypoints"]
     assert gitea["default_enabled"] == manifest["default_enabled"]
     assert gitea["status"] == "active"
+    assert gitea["dependency_status"]["available"] is False
+    assert "gitea" in gitea["dependency_status"]["missing_integrations"]
+
+
+@pytest.mark.django_db
+def test_update_runtime_skills_persists_stack_permissions_and_detail_payload(runtime_fixture: Runtime) -> None:
+    bootstrap_reference_data()
+
+    update_runtime_skills(
+        runtime_fixture.runtime_id,
+        ["support-triage", "runtime-operator", "support-triage"],
+    )
+    runtime_fixture.refresh_from_db()
+
+    assert runtime_fixture.settings["skill_stack"] == ["support-triage", "runtime-operator"]
+    assert runtime_fixture.settings["skill_permissions"] == ["runtime_read", "runtime_lifecycle"]
+    assert "runtime.start" in runtime_fixture.settings["skill_entrypoints"]
+    assert runtime_fixture.settings["skill_prompt_sections"][0]["key"] == "support-triage"
+
+    detail = runtime_detail_payload(runtime_fixture.runtime_id)
+    assert detail["skills"]["selected_keys"] == ["support-triage", "runtime-operator"]
+    assert any(item["key"] == "runtime-operator" for item in detail["skills"]["catalog"])
 
 
 @pytest.mark.django_db
@@ -535,17 +559,31 @@ def test_runtime_wizard_validate_and_create(operator_client: Client, runtime_fix
     assert validation.json()["valid"] is False
     assert "telegram_bot_token" in validation.json()["errors"]
 
-    monkeypatch.setattr("orchestrator.service_layer.create_or_update_runtime", lambda request, actor=None: runtime_fixture)
+    captured = {}
+
+    def fake_create_or_update_runtime(request, actor=None):
+        captured["request"] = request
+        return runtime_fixture
+
+    monkeypatch.setattr("orchestrator.service_layer.create_or_update_runtime", fake_create_or_update_runtime)
 
     created = operator_client.post(
         "/api/runtime-wizard/create",
-        data=json.dumps({"runtime_id": "new-runtime", "gateway_port": 3100, "model": runtime_fixture.model}),
+        data=json.dumps(
+            {
+                "runtime_id": "new-runtime",
+                "gateway_port": 3100,
+                "model": runtime_fixture.model,
+                "skill_keys": ["support-triage", "runtime-operator"],
+            }
+        ),
         content_type="application/json",
     )
 
     assert created.status_code == 201
     assert created.json()["runtime"]["runtime_id"] == runtime_fixture.runtime_id
     assert created.json()["next_steps"] == ["chat", "diagnostics", "secrets"]
+    assert captured["request"].skill_keys == ["support-triage", "runtime-operator"]
 
 
 @pytest.mark.django_db
@@ -717,6 +755,7 @@ def test_runtime_detail_payload_and_operator_pages_render(operator_client: Clien
     dashboard = operator_client.get("/admin/dashboard/", follow=False)
     runtimes = operator_client.get("/admin/runtimes/", follow=False)
     wizard = operator_client.get("/admin/runtime-wizard/")
+    wizard_skills = operator_client.get("/admin/runtime-wizard/?step=3")
     detail = operator_client.get(f"/admin/runtimes/{runtime_fixture.runtime_id}/")
     diagnostics = operator_client.get(f"/admin/runtimes/{runtime_fixture.runtime_id}/diagnostics/")
     providers = operator_client.get("/admin/providers/")
@@ -730,6 +769,7 @@ def test_runtime_detail_payload_and_operator_pages_render(operator_client: Clien
     assert runtimes.status_code == 302
     assert runtimes.headers["Location"] == "/admin/"
     assert wizard.status_code == 200
+    assert wizard_skills.status_code == 200
     assert detail.status_code == 200
     assert diagnostics.status_code == 200
     assert providers.status_code == 200
@@ -739,7 +779,9 @@ def test_runtime_detail_payload_and_operator_pages_render(operator_client: Clien
     assert b"Aquarium Operator Console" in admin_index.content
     assert b"/admin/domain/runtime/" not in admin_index.content
     assert b"Limits &amp; Keys" in detail.content
+    assert b"Operator Skills" in detail.content
     assert b"Runtime Wizard" in wizard.content
+    assert b"Operator Skills" in wizard_skills.content
     assert b"Diagnostics" in diagnostics.content
     assert b"Providers" in providers.content
     assert b"Secrets" in secrets.content

@@ -104,6 +104,7 @@ class RuntimeCreateRequest:
     plan_slug: str | None = None
     desired_channels: dict[str, bool] | None = None
     settings: dict[str, Any] | None = None
+    skill_keys: list[str] | None = None
     default_provider_connection_id: int | None = None
     default_provider_model_id: int | None = None
     api_url: str = default_api_url()
@@ -291,7 +292,66 @@ def _internal_skill_source_path(package_dir: Path) -> str:
         return str(skill_path.relative_to(INTERNAL_SKILLS_DIR.parent))
 
 
-def _skill_catalog_entry_payload(skill: SkillCatalogEntry) -> dict[str, Any]:
+def _unique_ordered(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+
+
+def _available_skill_services(extra_services: set[str] | None = None) -> set[str]:
+    services = {"controlplane", "infisical", "litellm", "runtime-gateway"}
+    if _monitoring_enabled():
+        services.add("monitoring")
+    if extra_services:
+        services.update(extra_services)
+    return services
+
+
+def _skill_dependency_status(skill: SkillCatalogEntry, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    context = context or {}
+    integrations = set(context.get("integrations") or [])
+    secrets = set(context.get("secrets") or [])
+    services = _available_skill_services(set(context.get("services") or []))
+    missing_integrations = [item for item in skill.required_integrations if item not in integrations]
+    missing_secrets = [item for item in skill.required_secrets if item not in secrets]
+    missing_services = [item for item in skill.required_services if item not in services]
+    reasons = []
+    if skill.trust_status not in {SkillTrustStatus.INTERNAL, SkillTrustStatus.REVIEWED}:
+        reasons.append(f"trust status is {skill.trust_status}")
+    if skill.status != "active":
+        reasons.append(f"status is {skill.status}")
+    if missing_integrations:
+        reasons.append("missing integrations: " + ", ".join(missing_integrations))
+    if missing_secrets:
+        reasons.append("missing secrets: " + ", ".join(missing_secrets))
+    if missing_services:
+        reasons.append("missing services: " + ", ".join(missing_services))
+    return {
+        "available": not reasons,
+        "reasons": reasons,
+        "missing_integrations": missing_integrations,
+        "missing_secrets": missing_secrets,
+        "missing_services": missing_services,
+    }
+
+
+def _runtime_skill_context(runtime: Runtime) -> dict[str, Any]:
+    integrations = {key for key, enabled in runtime.desired_channels.items() if enabled}
+    if runtime.settings.get("search_provider"):
+        integrations.add("search")
+    integrations.update(
+        runtime.integration_connections.exclude(status=ConnectionStatus.DISABLED).values_list("integration_type", flat=True)
+    )
+    secrets = set(runtime.secret_refs.values_list("secret_name", flat=True))
+    services = set(integrations)
+    return {"integrations": integrations, "secrets": secrets, "services": services}
+
+
+def _skill_catalog_entry_payload(skill: SkillCatalogEntry, *, context: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "key": skill.key,
         "display_name": skill.display_name,
@@ -310,6 +370,7 @@ def _skill_catalog_entry_payload(skill: SkillCatalogEntry) -> dict[str, Any]:
         "required_services": skill.required_services,
         "permissions": skill.permissions,
         "entrypoints": skill.entrypoints,
+        "dependency_status": _skill_dependency_status(skill, context),
     }
 
 
@@ -320,8 +381,74 @@ def skill_catalog_entries(*, include_disabled: bool = False) -> list[SkillCatalo
     return list(queryset.order_by("category", "display_name", "key"))
 
 
-def skill_catalog_payload(*, include_disabled: bool = False) -> dict[str, Any]:
-    return {"items": [_skill_catalog_entry_payload(skill) for skill in skill_catalog_entries(include_disabled=include_disabled)]}
+def skill_catalog_payload(*, include_disabled: bool = False, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "items": [
+            _skill_catalog_entry_payload(skill, context=context)
+            for skill in skill_catalog_entries(include_disabled=include_disabled)
+        ]
+    }
+
+
+def runtime_skill_context_payload(runtime_id: str) -> dict[str, Any]:
+    return _runtime_skill_context(get_runtime(runtime_id))
+
+
+def _read_skill_instructions(skill: SkillCatalogEntry) -> str:
+    path = ROOT_DIR / skill.source_path
+    if path.exists():
+        return path.read_text(encoding="utf-8").strip()
+    return skill.description
+
+
+def selected_skill_runtime_settings(skill_keys: list[str] | None) -> dict[str, Any]:
+    keys = _unique_ordered([key for key in (skill_keys or []) if key])
+    if not keys:
+        return {
+            "skill_stack": [],
+            "skill_permissions": [],
+            "skill_entrypoints": [],
+            "skill_prompt_sections": [],
+        }
+    skills = {skill.key: skill for skill in SkillCatalogEntry.objects.filter(key__in=keys, status="active")}
+    missing = [key for key in keys if key not in skills]
+    if missing:
+        raise ValueError("Unknown or disabled skills: " + ", ".join(missing))
+    invalid_trust = [key for key in keys if skills[key].trust_status not in {SkillTrustStatus.INTERNAL, SkillTrustStatus.REVIEWED}]
+    if invalid_trust:
+        raise ValueError("Unreviewed or blocked skills cannot be selected: " + ", ".join(invalid_trust))
+    ordered_skills = [skills[key] for key in keys]
+    permissions = _unique_ordered([permission for skill in ordered_skills for permission in skill.permissions])
+    entrypoints = _unique_ordered([entrypoint for skill in ordered_skills for entrypoint in skill.entrypoints])
+    return {
+        "skill_stack": keys,
+        "skill_permissions": permissions,
+        "skill_entrypoints": entrypoints,
+        "skill_prompt_sections": [
+            {
+                "key": skill.key,
+                "display_name": skill.display_name,
+                "instructions": _read_skill_instructions(skill),
+            }
+            for skill in ordered_skills
+        ],
+    }
+
+
+def update_runtime_skills(runtime_id: str, skill_keys: list[str], *, actor: Any = None) -> Runtime:
+    runtime = get_runtime(runtime_id)
+    runtime.settings.update(selected_skill_runtime_settings(skill_keys))
+    runtime.last_action_at = timezone.now()
+    runtime.save(update_fields=["settings", "last_action_at", "updated_at"])
+    log_runtime_action(
+        action="skills.update",
+        runtime=runtime,
+        status=ConnectionStatus.CONFIGURED,
+        message="Updated runtime skill stack.",
+        payload={"skill_keys": runtime.settings.get("skill_stack", [])},
+        actor=actor,
+    )
+    return runtime
 
 
 def import_json_state_if_empty() -> None:
@@ -828,6 +955,8 @@ def create_or_update_runtime(request: RuntimeCreateRequest, *, actor: Any = None
     if "telegram" not in resolved_channels:
         resolved_channels["telegram"] = request.telegram_enabled
     resolved_settings = request.settings or (existing_runtime.settings.copy() if existing_runtime else {})
+    if request.skill_keys is not None:
+        resolved_settings.update(selected_skill_runtime_settings(request.skill_keys))
     resolved_model = request.model or (default_provider_model.alias if default_provider_model else DEFAULT_MODEL_ALIAS)
     pricing = get_price_info()
     runtime, _ = Runtime.objects.update_or_create(
@@ -1691,6 +1820,12 @@ def runtime_detail_payload(runtime_id: str) -> dict[str, Any]:
         "key": key_info,
         "channels": runtime.desired_channels,
         "settings": runtime.settings,
+        "skills": {
+            "selected_keys": runtime.settings.get("skill_stack", []),
+            "permissions": runtime.settings.get("skill_permissions", []),
+            "entrypoints": runtime.settings.get("skill_entrypoints", []),
+            "catalog": skill_catalog_payload(context=_runtime_skill_context(runtime))["items"],
+        },
         "default_provider_connection": runtime.default_provider_connection,
         "default_provider_model": runtime.default_provider_model,
         "secrets": runtime_secret_payload(runtime_id),
