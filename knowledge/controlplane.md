@@ -105,6 +105,15 @@ Local endpoint:
 
 - [http://127.0.0.1:15000/admin/](http://127.0.0.1:15000/admin/)
 
+Perimeter bootstrap and local operator entrypoints:
+
+- `make perimeter-bootstrap` writes `perimeter-stack/.env` without rotating existing Authelia secrets on rerun
+- if `perimeter-stack/authelia/users_database.yml` is missing, bootstrap creates it once from either:
+  - `AUTHELIA_ADMIN_PASSWORD_HASH`
+  - `AUTHELIA_ADMIN_PASSWORD`
+  - or a one-time generated local admin password printed during bootstrap
+- public local perimeter entrypoints default to `http://app.aquarium.local`, `http://auth.aquarium.local`, `http://grafana.aquarium.local`, and `http://secrets.aquarium.local`
+
 Use `make controlplane-check` for a quick Django health/config check.
 
 ## Operator UI

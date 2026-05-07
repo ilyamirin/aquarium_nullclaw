@@ -7,7 +7,6 @@ ROOT_DIR=$(
 )
 PERIMETER_DIR="$ROOT_DIR/perimeter-stack"
 ENV_FILE="$PERIMETER_DIR/.env"
-USERS_EXAMPLE="$PERIMETER_DIR/authelia/users_database.yml.example"
 USERS_FILE="$PERIMETER_DIR/authelia/users_database.yml"
 
 require_command() {
@@ -21,21 +20,49 @@ random_secret() {
   openssl rand -hex 24
 }
 
+random_password() {
+  openssl rand -base64 18 | tr -d '\n'
+}
+
+hash_password() {
+  password="$1"
+  printf '%s' "$password" | openssl passwd -6 -stdin
+}
+
+append_env_if_missing() {
+  key="$1"
+  value="$2"
+
+  if grep -Eq "^${key}=" "$ENV_FILE"; then
+    return
+  fi
+
+  printf '%s=%s\n' "$key" "$value" >>"$ENV_FILE"
+}
+
 ensure_env_file() {
-  tmp_file="${ENV_FILE}.tmp"
   touch "$ENV_FILE"
-  grep -Ev '^(PERIMETER_HTTP_PORT|AUTHELIA_SESSION_SECRET|AUTHELIA_STORAGE_ENCRYPTION_KEY|AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET|CONTROLPLANE_PUBLIC_URL|GRAFANA_PUBLIC_URL|SECRETS_PUBLIC_URL)=' "$ENV_FILE" >"$tmp_file" || true
-  {
-    cat "$tmp_file"
-    printf 'PERIMETER_HTTP_PORT=%s\n' "${PERIMETER_HTTP_PORT:-8080}"
-    printf 'AUTHELIA_SESSION_SECRET=%s\n' "${AUTHELIA_SESSION_SECRET:-$(random_secret)}"
-    printf 'AUTHELIA_STORAGE_ENCRYPTION_KEY=%s\n' "${AUTHELIA_STORAGE_ENCRYPTION_KEY:-$(random_secret)}"
-    printf 'AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET=%s\n' "${AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET:-$(random_secret)}"
-    printf 'CONTROLPLANE_PUBLIC_URL=%s\n' "${CONTROLPLANE_PUBLIC_URL:-http://app.aquarium.local}"
-    printf 'GRAFANA_PUBLIC_URL=%s\n' "${GRAFANA_PUBLIC_URL:-http://grafana.aquarium.local}"
-    printf 'SECRETS_PUBLIC_URL=%s\n' "${SECRETS_PUBLIC_URL:-http://secrets.aquarium.local}"
-  } >"$ENV_FILE"
-  rm -f "$tmp_file"
+  append_env_if_missing "PERIMETER_HTTP_PORT" "${PERIMETER_HTTP_PORT:-8080}"
+  append_env_if_missing "AUTHELIA_SESSION_SECRET" "${AUTHELIA_SESSION_SECRET:-$(random_secret)}"
+  append_env_if_missing "AUTHELIA_STORAGE_ENCRYPTION_KEY" "${AUTHELIA_STORAGE_ENCRYPTION_KEY:-$(random_secret)}"
+  append_env_if_missing "AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET" "${AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET:-$(random_secret)}"
+  append_env_if_missing "CONTROLPLANE_PUBLIC_URL" "${CONTROLPLANE_PUBLIC_URL:-http://app.aquarium.local}"
+  append_env_if_missing "GRAFANA_PUBLIC_URL" "${GRAFANA_PUBLIC_URL:-http://grafana.aquarium.local}"
+  append_env_if_missing "SECRETS_PUBLIC_URL" "${SECRETS_PUBLIC_URL:-http://secrets.aquarium.local}"
+}
+
+write_users_file() {
+  password_hash="$1"
+
+  cat >"$USERS_FILE" <<EOF
+users:
+  admin:
+    displayname: Aquarium Admin
+    email: admin@aquarium.local
+    password: "$password_hash"
+    groups:
+      - admins
+EOF
 }
 
 ensure_users_file() {
@@ -43,7 +70,25 @@ ensure_users_file() {
     return
   fi
 
-  cp "$USERS_EXAMPLE" "$USERS_FILE"
+  if [ -n "${AUTHELIA_ADMIN_PASSWORD_HASH-}" ]; then
+    write_users_file "$AUTHELIA_ADMIN_PASSWORD_HASH"
+    echo "Wrote $USERS_FILE from AUTHELIA_ADMIN_PASSWORD_HASH"
+    return
+  fi
+
+  admin_password="${AUTHELIA_ADMIN_PASSWORD-}"
+  generated_password=""
+  if [ -z "$admin_password" ]; then
+    generated_password="$(random_password)"
+    admin_password="$generated_password"
+  fi
+
+  write_users_file "$(hash_password "$admin_password")"
+  if [ -n "$generated_password" ]; then
+    echo "Generated one-time Authelia admin password: $generated_password"
+  else
+    echo "Wrote $USERS_FILE from AUTHELIA_ADMIN_PASSWORD"
+  fi
 }
 
 require_command openssl
@@ -51,4 +96,3 @@ ensure_env_file
 ensure_users_file
 
 echo "Bootstrapped perimeter stack defaults in $ENV_FILE"
-echo "Copied Authelia users file to $USERS_FILE if it was missing"

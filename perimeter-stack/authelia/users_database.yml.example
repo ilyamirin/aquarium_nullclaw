@@ -2,6 +2,6 @@ users:
   admin:
     displayname: Aquarium Admin
     email: admin@aquarium.local
-    password: "$2b$12$CJ4j0EiYsmiVjCwXTlzA6uQfQ8g47Yx0eD0wN6i/K3PaY5E9OQj6y"
+    password: "<set-a-local-password-hash-before-use>"
     groups:
       - admins

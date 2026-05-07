@@ -54,7 +54,6 @@ def _selected_int(value: str | None) -> int | None:
 
 
 def _operator_context(*, title: str, active_page: str, page_description: str, **extra: Any) -> dict[str, Any]:
-    monitoring = _service().monitoring_surface_payload()
     context = {
         "title": title,
         "active_page": active_page,
@@ -62,8 +61,6 @@ def _operator_context(*, title: str, active_page: str, page_description: str, **
         "controlplane_public_url": settings.CONTROLPLANE_PUBLIC_URL,
         "grafana_url": settings.GRAFANA_PUBLIC_URL,
         "secrets_url": settings.SECRETS_PUBLIC_URL,
-        "monitoring_direct_url": monitoring["url"],
-        "monitoring": monitoring,
     }
     context.update(extra)
     return context
@@ -79,10 +76,13 @@ def _runtime_nav(runtime_id: str, active: str) -> list[dict[str, str | bool]]:
 
 def _operator_home_context() -> dict[str, Any]:
     runtimes = _service().list_runtimes()
+    monitoring = _service().monitoring_surface_payload()
     return _operator_context(
         title="Aquarium Operator Console",
         active_page="home",
         page_description="Единая операторская точка входа для runtime lifecycle, конфигурации, секретов и диагностики.",
+        monitoring=monitoring,
+        monitoring_direct_url=monitoring["url"],
         runtimes=runtimes,
         runtime_details=[_service().runtime_inventory_payload(runtime) for runtime in runtimes],
         runtime_count=len(runtimes),

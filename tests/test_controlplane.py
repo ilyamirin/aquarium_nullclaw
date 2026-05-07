@@ -583,8 +583,10 @@ def test_operator_home_prefers_perimeter_links(operator_client: Client) -> None:
 
     assert response.status_code == 200
     body = response.content.decode()
-    assert "http://grafana.aquarium.local" in body
-    assert "http://secrets.aquarium.local" in body
+    assert 'href="http://grafana.aquarium.local"' in body
+    assert '>Grafana</a>' in body
+    assert 'href="http://secrets.aquarium.local"' in body
+    assert '>Infisical</a>' in body
 
 
 @pytest.mark.django_db
