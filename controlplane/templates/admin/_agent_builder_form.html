@@ -1,0 +1,208 @@
+<div class="js-agent-builder-root">
+  <form method="post" class="op-form js-agent-builder-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ agent_form_action|default:'create_agent_inline' }}">
+    <div class="op-grid cols-2">
+      <label>
+        <span class="op-label">Name</span>
+        <input class="op-input" type="text" name="name" required>
+      </label>
+      <label>
+        <span class="op-label">Slug</span>
+        <input class="op-input" type="text" name="slug" required>
+      </label>
+      <label>
+        <span class="op-label">Model Alias</span>
+        <select class="op-input" name="model_alias">
+          {% for model in agent_models %}
+          <option value="{{ model.alias }}">{{ model.alias }}</option>
+          {% empty %}
+          <option value="openai/qwen/qwen3.6-plus">openai/qwen/qwen3.6-plus</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="op-label">Gateway Port</span>
+        <input class="op-input" type="number" name="gateway_port" value="3910">
+      </label>
+    </div>
+    <label>
+      <span class="op-label">Description</span>
+      <textarea class="op-input" name="description" rows="2"></textarea>
+    </label>
+    {% if personality_presets %}
+    <fieldset class="op-fieldset op-personality-presets">
+      <legend>Choose a personality preset</legend>
+      <p class="op-note">Pick a working style to generate the prompt, then inspect or edit the textarea before saving.</p>
+      <div class="op-preset-grid">
+        {% for preset in personality_presets %}
+        <label class="op-preset-card" data-preset-card data-preset-display="{{ preset.display_name }}">
+          <input type="radio" value="{{ preset.key }}" data-preset-radio data-preset-key="{{ preset.key }}">
+          <span class="op-preset-card-body">
+            <strong>{{ preset.display_name }}</strong>
+            <span class="op-preset-subtitle">{{ preset.subtitle }}</span>
+            <span>{{ preset.short_description }}</span>
+            <span class="op-preset-best-for"><span>Best for:</span> {{ preset.best_for }}</span>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="op-prompt-status" data-personality-prompt-status>Custom prompt</div>
+      <details class="op-prompt-disclosure">
+        <summary>View generated prompt</summary>
+        <pre class="op-pre op-prompt-preview" data-personality-prompt-preview>Choose a preset to preview the generated prompt.</pre>
+      </details>
+    </fieldset>
+    {% endif %}
+    <label>
+      <span class="op-label">Personality Prompt</span>
+      <textarea class="op-input" name="personality_prompt" rows="8" placeholder="You are calm, reliable, and concise."></textarea>
+    </label>
+    <div class="op-grid cols-2">
+      <label class="op-check">
+        <input type="checkbox" name="telegram_enabled" checked>
+        <span>Telegram is the primary external channel</span>
+      </label>
+      <div></div>
+      <label>
+        <span class="op-label">Telegram Bot Secret</span>
+        <select class="op-input" name="telegram_bot_secret">
+          <option value="">Select secret</option>
+          {% for secret in workspace_secrets %}
+          <option value="{{ secret.name }}">{{ secret.name }} · {{ secret.secret_kind }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="op-label">Telegram Allow-From Secret</span>
+        <select class="op-input" name="telegram_allow_secret">
+          <option value="">Optional</option>
+          {% for secret in workspace_secrets %}
+          <option value="{{ secret.name }}">{{ secret.name }} · {{ secret.secret_kind }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="op-grid cols-3">
+      <label>
+        <span class="op-label">LiteLLM Budget USD</span>
+        <input class="op-input" type="number" name="litellm_budget_usd" step="0.01">
+      </label>
+      <label>
+        <span class="op-label">LiteLLM RPM</span>
+        <input class="op-input" type="number" name="litellm_rpm_limit">
+      </label>
+      <label>
+        <span class="op-label">LiteLLM TPM</span>
+        <input class="op-input" type="number" name="litellm_tpm_limit">
+      </label>
+    </div>
+    <fieldset class="op-fieldset">
+      <legend>Ordered Skills</legend>
+      <div class="op-grid cols-2">
+        {% for skill in skill_catalog %}
+        <label class="op-check">
+          <input type="checkbox" name="skill_keys" value="{{ skill.key }}">
+          <span><strong>{{ skill.display_name }}</strong><br><span class="op-note">{{ skill.description }}</span></span>
+        </label>
+        {% empty %}
+        <div class="op-empty">No curated skills available yet.</div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div class="op-actions">
+      <button class="op-button primary" type="submit">{{ agent_submit_label|default:"Create Draft Agent" }}</button>
+      {% if agent_cancel_href %}
+      <a href="{{ agent_cancel_href }}" class="op-button secondary">{{ agent_cancel_label|default:"Back" }}</a>
+      {% endif %}
+    </div>
+  </form>
+  {{ personality_preset_prompts|json_script:"personality-preset-prompts" }}
+  <script>
+    (function () {
+      var root = document.currentScript.closest(".js-agent-builder-root");
+      if (!root) return;
+
+      var promptData = root.querySelector("#personality-preset-prompts");
+      var textarea = root.querySelector('textarea[name="personality_prompt"]');
+      var preview = root.querySelector("[data-personality-prompt-preview]");
+      var status = root.querySelector("[data-personality-prompt-status]");
+      var radios = Array.prototype.slice.call(root.querySelectorAll("[data-preset-radio]"));
+      if (!promptData || !textarea || !radios.length) return;
+
+      var prompts = JSON.parse(promptData.textContent);
+      var activeKey = null;
+      var activePrompt = "";
+      var suppressInput = false;
+
+      function presetName(key) {
+        var radio = radios.find(function (item) {
+          return item.dataset.presetKey === key;
+        });
+        var card = radio ? radio.closest("[data-preset-card]") : null;
+        return card ? card.dataset.presetDisplay : key;
+      }
+
+      function hasCustomizedPrompt() {
+        if (activeKey) {
+          return textarea.value !== activePrompt;
+        }
+        return textarea.value.length > 0;
+      }
+
+      function setChecked(key) {
+        radios.forEach(function (radio) {
+          radio.checked = radio.dataset.presetKey === key;
+        });
+      }
+
+      function setStatus(message) {
+        if (status) status.textContent = message;
+      }
+
+      function applyPreset(key) {
+        activeKey = key;
+        activePrompt = prompts[key] || "";
+        suppressInput = true;
+        textarea.value = activePrompt;
+        suppressInput = false;
+        if (preview) preview.textContent = activePrompt || "No generated prompt is available.";
+        setStatus("Using " + presetName(key) + " preset");
+      }
+
+      radios.forEach(function (radio) {
+        radio.addEventListener("change", function () {
+          if (!radio.checked) return;
+          var nextKey = radio.dataset.presetKey;
+          if (!prompts[nextKey]) return;
+
+          if (hasCustomizedPrompt()) {
+            var confirmed = window.confirm(
+              "Replace the current personality prompt with the " + presetName(nextKey) + " preset?"
+            );
+            if (!confirmed) {
+              setChecked(activeKey);
+              return;
+            }
+          }
+
+          setChecked(nextKey);
+          applyPreset(nextKey);
+        });
+      });
+
+      textarea.addEventListener("input", function () {
+        if (suppressInput) return;
+        if (activeKey && textarea.value !== activePrompt) {
+          setStatus("Customized from " + presetName(activeKey) + " preset");
+        } else if (activeKey) {
+          setStatus("Using " + presetName(activeKey) + " preset");
+        } else if (textarea.value.length > 0) {
+          setStatus("Custom prompt");
+        } else {
+          setStatus("Custom prompt");
+        }
+      });
+    })();
+  </script>
+</div>

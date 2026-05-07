@@ -1,0 +1,9 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_body %}
+<section class="op-card">
+  <h2>Create Agent</h2>
+  <p class="op-note">Create a draft agent first. Launch happens later from Agent Studio.</p>
+  {% include "admin/_agent_builder_form.html" with agent_form_action="create_agent_inline" agent_submit_label="Create Draft Agent" agent_cancel_href="/admin/" agent_cancel_label="Back to Agent Home" %}
+</section>
+{% endblock %}

@@ -21,6 +21,13 @@ The runtime-management stack is now split into three layers:
 - `orchestrator/cli.py`
   thin local operator adapter over the same service layer
 
+The current direction is now explicitly **agent-first**:
+
+- `Agent` is the primary product object
+- `AgentBuildSpec` is the editable recipe
+- `Deployment` is the execution record
+- `Runtime` remains the internal execution substrate and compatibility layer
+
 Important rule:
 
 - the web control plane does **not** shell out to the CLI
@@ -47,6 +54,14 @@ Why both exist:
 
 Core models:
 
+- `Workspace`
+- `Agent`
+- `AgentBuildSpec`
+- `SkillCatalogEntry`
+- `AgentSkillBinding`
+- `Secret`
+- `AgentSecretBinding`
+- `Deployment`
 - `Tenant`
 - `Plan`
 - `RuntimeProfile`
@@ -95,6 +110,14 @@ That creates:
 - password: `admin`
 - email: `admin@aquarium.local`
 
+SSO-compatible entrypoints:
+
+- `LOGIN_URL` now points to `/auth/login/`
+- `LOGOUT_REDIRECT_URL` now points to `/auth/logout/`
+- `controlplane.domain.auth.AutheliaRemoteUserMiddleware` auto-creates/logs in a staff operator when the configured Authelia header is present
+- default header name is `HTTP_REMOTE_USER`
+- `AUTHELIA_LOGIN_URL`, `AUTHELIA_LOGOUT_URL`, and `AUTHELIA_HEADER_USER` are environment-overridable
+
 Run the web UI locally:
 
 ```bash
@@ -114,6 +137,10 @@ The operator UI is the Django admin styled through Unfold.
 Current pages and flows:
 
 - Admin root operator landing page
+- Agent Home
+- Create Agent wizard at `/admin/agents/new/`
+- Agent Studio at `/admin/agents/<agent_slug>/`
+- Workspace Vault at `/admin/vault/`
 - Runtime list and custom runtime detail
 - Runtime wizard with staged setup flow
 - Runtime diagnostics page
@@ -127,7 +154,31 @@ Current pages and flows:
 The important operator decision is now explicit:
 
 - raw Django model forms are secondary
-- the main operator surface is the dedicated runtime page at `/admin/runtimes/<runtime_id>/`
+- the main product surface is now agent-first
+- the dedicated runtime page at `/admin/runtimes/<runtime_id>/` remains available as a secondary execution/diagnostics surface during migration
+
+Agent-first surfaces:
+
+- `/admin/` now shows `Agent Home` first and keeps runtime inventory below it
+- `/admin/agents/new/` creates a **draft** only
+- `/admin/agents/<slug>/` is the configuration-first Agent Studio
+- launch and stop are explicit actions from Agent Studio
+- internal test chat still routes through the existing runtime chat page when a deployment exists
+
+Agent Builder personality presets:
+
+- the static catalog lives in `controlplane/domain/personality_presets.py`
+- the current seven presets are `Mara / The Field Operator`, `Viktor / The Hard Reviewer`, `Noa / The Scout`, `Sana / The Diplomat`, `Kiro / The Builder`, `Elin / The Mentor`, and `Rook / The Wild Card`
+- `_agent_builder_context` passes `personality_presets` and a safe JSON prompt map to both `/admin/` and `/admin/agents/new/`
+- the shared builder partial `controlplane/templates/admin/_agent_builder_form.html` renders preset radio cards above the `personality_prompt` textarea
+- each card is a creation-time helper showing display name, subtitle, short description, and `Best for`
+- selecting a card uses local JavaScript to fill the textarea and update the generated prompt preview
+- long generated prompts are hidden behind the `View generated prompt` disclosure so the page stays compact
+- manual textarea edits mark the prompt as customized from the active preset
+- selecting a different preset after custom edits asks for browser confirmation before overwriting the textarea
+- JavaScript is progressive enhancement only; if it fails, the textarea remains usable and remains the submitted source of truth
+- v1 does not submit or store a preset ID; only the final `personality_prompt` textarea value is saved on the build spec
+- because only the final prompt text is persisted, future edits to the static preset catalog do not mutate existing agents
 
 That runtime page aggregates:
 
@@ -187,6 +238,12 @@ The JSON API is operator-first and lives under `/api/`.
 
 Implemented resource groups:
 
+- `/api/agents`
+- `/api/agents/<id>`
+- `/api/agents/<id>/launch`
+- `/api/agents/<id>/stop`
+- `/api/skills/catalog`
+- `/api/workspace/secrets`
 - `/api/runtimes`
 - `/api/runtimes/<id>/limits`
 - `/api/runtimes/<id>/keys/<action>`
@@ -206,8 +263,15 @@ Security posture:
 
 - login required
 - staff-only
-- anonymous requests are redirected to Django admin login
+- anonymous requests are redirected to `/auth/login/`
 - non-staff authenticated users receive `403`
+
+Workspace/agent contract:
+
+- single operator / single workspace for v1
+- workspace secrets are stored in the current secret backend and surfaced as write-only metadata in the UI/API
+- agent creation stores config first; launch resolves secret bindings and compiles them into runtime inputs
+- personality presets affect only draft creation UX by pre-filling `AgentBuildSpec.personality_prompt`; they are not runtime dependencies and do not change launch semantics
 
 ## Diagnostics Model
 

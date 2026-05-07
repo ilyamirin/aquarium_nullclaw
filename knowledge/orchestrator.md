@@ -17,6 +17,7 @@ Tracked sources:
 
 The orchestrator owns:
 
+- workspace secret storage and agent-first deployment compilation
 - runtime inventory
 - per-runtime Infisical project creation
 - runtime secret upsert
@@ -49,6 +50,11 @@ Important rule:
 - the web API does not shell out to the CLI
 - both use the same Python services directly
 
+The service layer now has two concurrent contracts:
+
+- legacy/runtime-first services for compatibility and existing operator flows
+- new agent-first services that compile `AgentBuildSpec` into runtime inputs before provisioning execution
+
 ## Local State Layout
 
 Ignored local state lives under `.aquarium/`:
@@ -68,6 +74,15 @@ Current source-of-truth rule:
 
 - Django DB in `.aquarium/state/controlplane.sqlite3` is now primary
 - `.aquarium/state/runtimes.json` is still mirrored for compatibility and recovery
+
+Additional DB-backed agent state now lives only in the Django SQLite DB:
+
+- workspaces
+- agents
+- build specs
+- skill catalog entries
+- workspace secrets
+- deployments
 
 Additional ignored bootstrap file outside `.aquarium/`:
 
@@ -193,6 +208,28 @@ Control-plane initiated runtime mutations now auto-apply:
 - saving runtime secrets rewrites bootstrap env and recreates the runtime so Infisical-backed env and rendered config are refreshed
 - saving or deleting runtime-scoped integrations rewrites bootstrap env and recreates the runtime so channel/search settings take effect immediately
 - `runtime sync-limits` remains the manual repair path for re-pushing the current LiteLLM limit state
+
+## Agent-First Apply Contract
+
+Current agent-first services in [orchestrator/service_layer.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/service_layer.py):
+
+- `ensure_workspace`
+- `bootstrap_skill_catalog`
+- `upsert_workspace_secret`
+- `create_draft_agent`
+- `launch_agent`
+- `stop_agent`
+- `agent_payload`
+- `agent_detail_payload`
+
+Current behavior:
+
+- workspace secrets are stored in the existing Infisical backend, not in Django
+- draft agent creation persists only configuration objects
+- Agent Builder personality presets are control-plane creation templates only; they pre-fill `AgentBuildSpec.personality_prompt` before draft creation and do not add a preset identifier to runtime provisioning
+- launch validates the build spec, resolves workspace secret bindings, compiles the ordered skill stack into runtime settings, and then calls the existing runtime provisioning path
+- deployment history is now separate from runtime lifecycle state
+- runtime IDs currently reuse the agent slug as the execution identifier
 
 ## Why This Replaced The Manual Stack Split
 

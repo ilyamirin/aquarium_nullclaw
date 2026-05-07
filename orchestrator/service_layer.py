@@ -10,6 +10,8 @@ from urllib.parse import quote
 import requests
 from django.core.management import call_command
 from django.db import transaction
+from django.db.models import Max
+from django.utils.text import slugify
 from django.utils import timezone
 
 from orchestrator.django import setup_django
@@ -17,11 +19,19 @@ from orchestrator.django import setup_django
 setup_django()
 
 from controlplane.domain.models import (
+    Agent,
+    AgentSecretBinding,
+    AgentSkillBinding,
+    AgentStatus,
+    AgentBuildSpec,
     ChatRole,
     ConnectionScope,
     ConnectionStatus,
+    Deployment,
+    DeploymentStatus,
     IntegrationConnection,
     Plan,
+    PrimaryChannel,
     ProviderConnection,
     ProviderKind,
     ProviderModel,
@@ -35,8 +45,11 @@ from controlplane.domain.models import (
     RuntimeProfile,
     RuntimeProfileSlug,
     RuntimeSecretRef,
+    Secret,
     SecretKind,
+    SkillCatalogEntry,
     Tenant,
+    Workspace,
 )
 from orchestrator.compose import write_compose
 from orchestrator.infisical import (
@@ -104,6 +117,29 @@ class RuntimeCreateRequest:
     default_provider_model_id: int | None = None
     api_url: str = default_api_url()
     litellm_base_url: str = default_litellm_base_url()
+
+
+@dataclass
+class AgentCreateRequest:
+    name: str
+    slug: str
+    description: str = ""
+    personality_prompt: str = ""
+    model_alias: str = DEFAULT_MODEL_ALIAS
+    gateway_port: int | None = None
+    runtime_template: str = "generic-runtime"
+    environment_profile: dict[str, Any] | None = None
+    startup_policy: dict[str, Any] | None = None
+    observability_profile: dict[str, Any] | None = None
+    autonomy_limits: dict[str, Any] | None = None
+    safety_limits: dict[str, Any] | None = None
+    channel_config: dict[str, Any] | None = None
+    settings: dict[str, Any] | None = None
+    secret_bindings: dict[str, str] | None = None
+    skill_keys: list[str] | None = None
+    litellm_budget_usd: float | None = None
+    litellm_rpm_limit: int | None = None
+    litellm_tpm_limit: int | None = None
 
 
 PROVIDER_CATALOG: list[dict[str, str]] = [
@@ -180,6 +216,14 @@ def bootstrap_reference_data() -> None:
         RuntimeProfile.objects.get_or_create(slug=slug, defaults={"display_name": name})
     Tenant.objects.get_or_create(slug="default", defaults={"name": "Default Tenant"})
     Plan.objects.get_or_create(slug="default", defaults={"display_name": "Default Plan"})
+    Workspace.objects.get_or_create(
+        slug="default-workspace",
+        defaults={
+            "display_name": "Default Workspace",
+            "authelia_subject": "local-operator",
+            "infisical_project_slug": "workspace-default",
+        },
+    )
 
 
 def import_json_state_if_empty() -> None:
@@ -329,6 +373,525 @@ def mirror_json_state() -> None:
 
     save_state(_state_from_db())
 
+
+AGENT_SKILL_CATALOG: list[dict[str, str]] = [
+    {
+        "key": "telegram-ops",
+        "display_name": "Telegram Ops",
+        "description": "Operator-friendly Telegram messaging behaviors.",
+        "source_path": "knowledge/skills/telegram-ops.md",
+    },
+    {
+        "key": "status-reporter",
+        "display_name": "Status Reporter",
+        "description": "Concise summaries, updates, and structured reporting.",
+        "source_path": "knowledge/skills/status-reporter.md",
+    },
+    {
+        "key": "retrieval-briefing",
+        "display_name": "Retrieval Briefing",
+        "description": "Summarize retrieved context before taking action.",
+        "source_path": "knowledge/skills/retrieval-briefing.md",
+    },
+]
+
+
+def _workspace_subject(actor: Any = None) -> str:
+    if actor is not None and getattr(actor, "username", ""):
+        return str(actor.username)
+    return "local-operator"
+
+
+def _workspace_slug(subject: str) -> str:
+    slug = slugify(subject) or "default-workspace"
+    return slug[:50]
+
+
+def _next_agent_gateway_port() -> int:
+    highest = AgentBuildSpec.objects.aggregate(highest=Max("gateway_port"))["highest"] or 3009
+    return highest + 1
+
+
+def _workspace_secret_backend_name(secret_kind: str, name: str) -> str:
+    base = slugify(name).replace("-", "_").upper() or "SECRET"
+    return f"WORKSPACE_{base}"
+
+
+def ensure_workspace(actor: Any = None, *, ensure_backend: bool = True) -> Workspace:
+    ensure_controlplane_ready()
+    subject = _workspace_subject(actor)
+    workspace, _ = Workspace.objects.get_or_create(
+        authelia_subject=subject,
+        defaults={
+            "slug": _workspace_slug(subject),
+            "display_name": "Default Workspace",
+            "infisical_project_slug": f"workspace-{_workspace_slug(subject)}",
+        },
+    )
+    if ensure_backend and not workspace.infisical_project_id:
+        project = ensure_project(operator_token(default_api_url()), workspace.infisical_project_slug)
+        workspace.infisical_project_id = project["id"]
+        workspace.infisical_project_slug = project["slug"]
+        workspace.save(
+            update_fields=[
+                "infisical_project_id",
+                "infisical_project_slug",
+                "updated_at",
+            ]
+        )
+    return workspace
+
+
+def bootstrap_skill_catalog() -> list[SkillCatalogEntry]:
+    ensure_controlplane_ready()
+    items: list[SkillCatalogEntry] = []
+    for entry in AGENT_SKILL_CATALOG:
+        skill, _ = SkillCatalogEntry.objects.update_or_create(
+            key=entry["key"],
+            defaults={
+                "display_name": entry["display_name"],
+                "description": entry["description"],
+                "source_path": entry["source_path"],
+                "is_enabled": True,
+            },
+        )
+        items.append(skill)
+    return items
+
+
+def skill_catalog_entries() -> list[SkillCatalogEntry]:
+    bootstrap_skill_catalog()
+    order = [entry["key"] for entry in AGENT_SKILL_CATALOG]
+    items = {skill.key: skill for skill in SkillCatalogEntry.objects.filter(is_enabled=True)}
+    return [items[key] for key in order if key in items] + [skill for key, skill in items.items() if key not in order]
+
+
+def list_agents() -> list[Agent]:
+    ensure_controlplane_ready()
+    backfill_agents_from_runtimes()
+    return list(
+        Agent.objects.select_related("workspace", "current_build_spec", "current_deployment")
+        .prefetch_related("current_build_spec__skill_bindings__skill", "current_build_spec__secret_bindings__secret")
+        .order_by("slug")
+    )
+
+
+def get_agent(slug: str) -> Agent:
+    ensure_controlplane_ready()
+    backfill_agents_from_runtimes()
+    return Agent.objects.select_related("workspace", "current_build_spec", "current_deployment").get(slug=slug)
+
+
+def list_workspace_secrets(actor: Any = None) -> list[Secret]:
+    workspace = ensure_workspace(actor, ensure_backend=False)
+    return list(workspace.secrets.order_by("name"))
+
+
+def upsert_workspace_secret(name: str, secret_kind: str, secret_value: str, *, actor: Any = None) -> Secret:
+    workspace = ensure_workspace(actor, ensure_backend=True)
+    secret_name = _workspace_secret_backend_name(secret_kind, name)
+    upsert_secret(
+        default_api_url(),
+        operator_token(default_api_url()),
+        workspace.infisical_project_id,
+        secret_name=secret_name,
+        secret_value=secret_value,
+        environment=workspace.infisical_env,
+        secret_path=workspace.infisical_path,
+    )
+    secret, _ = Secret.objects.update_or_create(
+        workspace=workspace,
+        name=name,
+        defaults={
+            "secret_kind": secret_kind,
+            "backend_ref": workspace.infisical_project_id,
+            "backend_secret_name": secret_name,
+            "masked_label": "Configured",
+            "last_error": "",
+        },
+    )
+    return secret
+
+
+def _resolve_workspace_secret(secret: Secret) -> str:
+    return read_secret_with_token(
+        default_api_url(),
+        operator_token(default_api_url()),
+        project_id=secret.workspace.infisical_project_id,
+        environment=secret.workspace.infisical_env,
+        secret_path=secret.workspace.infisical_path,
+        secret_name=secret.backend_secret_name,
+    )
+
+
+def create_draft_agent(request: AgentCreateRequest, *, actor: Any = None) -> Agent:
+    ensure_controlplane_ready()
+    workspace = ensure_workspace(actor, ensure_backend=False)
+    bootstrap_skill_catalog()
+    with transaction.atomic():
+        agent = Agent.objects.create(
+            workspace=workspace,
+            name=request.name,
+            slug=request.slug,
+            description=request.description,
+            status=AgentStatus.DRAFT,
+            primary_channel=PrimaryChannel.TELEGRAM
+            if (request.channel_config or {}).get("telegram_enabled", True)
+            else PrimaryChannel.INTERNAL,
+        )
+        build_spec = AgentBuildSpec.objects.create(
+            agent=agent,
+            personality_prompt=request.personality_prompt,
+            model_alias=request.model_alias,
+            runtime_template=request.runtime_template,
+            gateway_port=request.gateway_port or _next_agent_gateway_port(),
+            environment_profile=request.environment_profile or {},
+            startup_policy=request.startup_policy or {},
+            observability_profile=request.observability_profile or {},
+            autonomy_limits=request.autonomy_limits or {},
+            safety_limits=request.safety_limits or {},
+            channel_config=request.channel_config or {},
+            settings=request.settings or {},
+            litellm_budget_usd=request.litellm_budget_usd,
+            litellm_rpm_limit=request.litellm_rpm_limit,
+            litellm_tpm_limit=request.litellm_tpm_limit,
+            build_state=AgentStatus.DRAFT,
+        )
+        for position, skill_key in enumerate(request.skill_keys or []):
+            skill = SkillCatalogEntry.objects.get(key=skill_key)
+            AgentSkillBinding.objects.create(build_spec=build_spec, skill=skill, position=position, enabled=True)
+        for logical_role, secret_name in (request.secret_bindings or {}).items():
+            secret = Secret.objects.get(workspace=workspace, name=secret_name)
+            AgentSecretBinding.objects.create(build_spec=build_spec, secret=secret, logical_role=logical_role, required=True)
+        agent.current_build_spec = build_spec
+        agent.save(update_fields=["current_build_spec", "updated_at"])
+    return agent
+
+
+def _validate_agent_build_spec(build_spec: AgentBuildSpec) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    if not build_spec.model_alias:
+        errors["model_alias"] = "Model alias is required."
+    if build_spec.channel_config.get("telegram_enabled"):
+        roles = set(build_spec.secret_bindings.values_list("logical_role", flat=True))
+        if "telegram_bot_token" not in roles:
+            errors["telegram_bot_token"] = "Telegram launch requires a bot token binding."
+    return errors
+
+
+def _compiled_prompt(build_spec: AgentBuildSpec) -> str:
+    sections = [build_spec.personality_prompt.strip()]
+    for binding in build_spec.skill_bindings.select_related("skill").order_by("position"):
+        sections.append(f"[{binding.skill.key}] {binding.skill.description}".strip())
+    return "\n\n".join(section for section in sections if section)
+
+
+def launch_agent(slug: str, *, actor: Any = None) -> Deployment:
+    ensure_controlplane_ready()
+    agent = get_agent(slug)
+    build_spec = agent.current_build_spec
+    if build_spec is None:
+        raise ValueError("Agent has no build spec.")
+    errors = _validate_agent_build_spec(build_spec)
+    if errors:
+        raise ValueError("; ".join(errors.values()))
+
+    build_spec.refresh_from_db()
+    secret_map = {
+        binding.logical_role: _resolve_workspace_secret(binding.secret)
+        for binding in build_spec.secret_bindings.select_related("secret", "secret__workspace")
+    }
+    deployment = Deployment.objects.create(
+        agent=agent,
+        build_spec=build_spec,
+        status=DeploymentStatus.LAUNCHING,
+        launch_summary={"skill_keys": list(build_spec.skill_bindings.values_list("skill__key", flat=True))},
+    )
+    agent.status = AgentStatus.LAUNCHING
+    agent.current_deployment = deployment
+    agent.save(update_fields=["status", "current_deployment", "updated_at"])
+
+    runtime = create_or_update_runtime(
+        RuntimeCreateRequest(
+            runtime_id=agent.slug,
+            gateway_port=build_spec.gateway_port,
+            model=build_spec.model_alias,
+            telegram_enabled=bool(build_spec.channel_config.get("telegram_enabled", False)),
+            telegram_bot_token=secret_map.get("telegram_bot_token", ""),
+            telegram_allow_from=secret_map.get("telegram_allow_from", build_spec.channel_config.get("allow_from", "373793732")),
+            runtime_role="custom",
+            budget_usd=build_spec.litellm_budget_usd,
+            rpm_limit=build_spec.litellm_rpm_limit,
+            tpm_limit=build_spec.litellm_tpm_limit,
+            desired_channels={"telegram": bool(build_spec.channel_config.get("telegram_enabled", False))},
+            settings={
+                **build_spec.settings,
+                "system_prompt": _compiled_prompt(build_spec),
+                "skill_stack": list(build_spec.skill_bindings.order_by("position").values_list("skill__key", flat=True)),
+                "agent_slug": agent.slug,
+                "build_spec_id": build_spec.pk,
+            },
+        ),
+        actor=actor,
+    )
+    deployment.runtime = runtime
+    deployment.runtime_ref = runtime.runtime_id
+    deployment.status = DeploymentStatus.RUNNING
+    deployment.launched_at = timezone.now()
+    deployment.save(update_fields=["runtime", "runtime_ref", "status", "launched_at", "updated_at"])
+
+    agent.status = AgentStatus.RUNNING
+    agent.last_launched_at = deployment.launched_at
+    agent.current_deployment = deployment
+    agent.save(update_fields=["status", "last_launched_at", "current_deployment", "updated_at"])
+    return deployment
+
+
+def stop_agent(slug: str, *, actor: Any = None) -> Deployment:
+    ensure_controlplane_ready()
+    agent = get_agent(slug)
+    deployment = agent.current_deployment
+    if deployment is None:
+        raise ValueError("Agent has no active deployment.")
+    if deployment.runtime_ref:
+        stop_runtime(deployment.runtime_ref, actor=actor)
+    deployment.status = DeploymentStatus.STOPPED
+    deployment.stopped_at = timezone.now()
+    deployment.save(update_fields=["status", "stopped_at", "updated_at"])
+    agent.status = AgentStatus.STOPPED
+    agent.save(update_fields=["status", "updated_at"])
+    return deployment
+
+
+def _deployment_status_from_runtime(runtime: Runtime) -> str:
+    if runtime.lifecycle_status == RuntimeLifecycleStatus.RUNNING:
+        return DeploymentStatus.RUNNING
+    if runtime.lifecycle_status == RuntimeLifecycleStatus.ERROR:
+        return DeploymentStatus.FAILED
+    return DeploymentStatus.STOPPED
+
+
+def _agent_status_from_runtime(runtime: Runtime) -> str:
+    if runtime.lifecycle_status == RuntimeLifecycleStatus.RUNNING:
+        if runtime.health_status in {RuntimeHealthStatus.DEGRADED, RuntimeHealthStatus.UNHEALTHY}:
+            return AgentStatus.DEGRADED
+        return AgentStatus.RUNNING
+    if runtime.lifecycle_status == RuntimeLifecycleStatus.STOPPED:
+        return AgentStatus.STOPPED
+    if runtime.lifecycle_status == RuntimeLifecycleStatus.ERROR:
+        return AgentStatus.ERROR
+    return AgentStatus.READY
+
+
+def backfill_agents_from_runtimes(*, actor: Any = None) -> int:
+    ensure_controlplane_ready()
+    workspace = ensure_workspace(actor, ensure_backend=False)
+    created = 0
+    for runtime in Runtime.objects.select_related("tenant", "plan", "runtime_profile").order_by("runtime_id"):
+        if Agent.objects.filter(slug=runtime.runtime_id).exists():
+            continue
+        with transaction.atomic():
+            agent = Agent.objects.create(
+                workspace=workspace,
+                name=runtime.runtime_id.replace("-", " ").title(),
+                slug=runtime.runtime_id,
+                description="Backfilled from existing runtime inventory.",
+                status=_agent_status_from_runtime(runtime),
+                primary_channel=PrimaryChannel.TELEGRAM if runtime.telegram_enabled else PrimaryChannel.INTERNAL,
+                last_launched_at=runtime.last_action_at,
+            )
+            build_spec = AgentBuildSpec.objects.create(
+                agent=agent,
+                personality_prompt="",
+                model_alias=runtime.model,
+                runtime_template="generic-runtime",
+                gateway_port=runtime.gateway_port,
+                channel_config={
+                    "telegram_enabled": runtime.telegram_enabled,
+                    "desired_channels": runtime.desired_channels,
+                },
+                settings=runtime.settings,
+                litellm_budget_usd=runtime.litellm_budget_usd,
+                litellm_rpm_limit=runtime.litellm_rpm_limit,
+                litellm_tpm_limit=runtime.litellm_tpm_limit,
+                build_state=_agent_status_from_runtime(runtime),
+            )
+            deployment = Deployment.objects.create(
+                agent=agent,
+                build_spec=build_spec,
+                runtime=runtime,
+                runtime_ref=runtime.runtime_id,
+                status=_deployment_status_from_runtime(runtime),
+                launch_summary={"source": "runtime-backfill"},
+                launched_at=runtime.last_action_at,
+                last_error=runtime.last_error,
+            )
+            agent.current_build_spec = build_spec
+            agent.current_deployment = deployment
+            agent.save(update_fields=["current_build_spec", "current_deployment", "updated_at"])
+        created += 1
+    return created
+
+
+def agent_payload(agent: Agent) -> dict[str, Any]:
+    build_spec = agent.current_build_spec
+    deployment = agent.current_deployment
+    return {
+        "id": agent.pk,
+        "name": agent.name,
+        "slug": agent.slug,
+        "description": agent.description,
+        "status": agent.status,
+        "primary_channel": agent.primary_channel,
+        "model": build_spec.model_alias if build_spec else None,
+        "gateway_port": build_spec.gateway_port if build_spec else None,
+        "last_launch": agent.last_launched_at.isoformat() if agent.last_launched_at else None,
+        "last_interaction": agent.last_interaction_at.isoformat() if agent.last_interaction_at else None,
+        "current_deployment": deployment.pk if deployment else None,
+    }
+
+
+def agent_detail_payload(slug: str) -> dict[str, Any]:
+    agent = get_agent(slug)
+    build_spec = agent.current_build_spec
+    deployment = agent.current_deployment
+    return {
+        "agent": agent_payload(agent),
+        "build_spec": {
+            "id": build_spec.pk,
+            "personality_prompt": build_spec.personality_prompt,
+            "model_alias": build_spec.model_alias,
+            "runtime_template": build_spec.runtime_template,
+            "gateway_port": build_spec.gateway_port,
+            "channel_config": build_spec.channel_config,
+            "litellm_budget_usd": build_spec.litellm_budget_usd,
+            "litellm_rpm_limit": build_spec.litellm_rpm_limit,
+            "litellm_tpm_limit": build_spec.litellm_tpm_limit,
+            "skills": [
+                {
+                    "key": binding.skill.key,
+                    "display_name": binding.skill.display_name,
+                    "position": binding.position,
+                }
+                for binding in build_spec.skill_bindings.select_related("skill").order_by("position")
+            ],
+            "secrets": [
+                {
+                    "name": binding.secret.name,
+                    "logical_role": binding.logical_role,
+                    "masked_label": binding.secret.masked_label,
+                    "secret_kind": binding.secret.secret_kind,
+                }
+                for binding in build_spec.secret_bindings.select_related("secret").order_by("logical_role")
+            ],
+        }
+        if build_spec
+        else None,
+        "deployment": {
+            "id": deployment.pk,
+            "status": deployment.status,
+            "runtime_ref": deployment.runtime_ref,
+            "launched_at": deployment.launched_at.isoformat() if deployment.launched_at else None,
+            "stopped_at": deployment.stopped_at.isoformat() if deployment.stopped_at else None,
+            "last_error": deployment.last_error,
+        }
+        if deployment
+        else None,
+    }
+
+
+def update_agent_build_spec(
+    slug: str,
+    *,
+    personality_prompt: str | None = None,
+    model_alias: str | None = None,
+    gateway_port: int | None = None,
+    channel_config: dict[str, Any] | None = None,
+    litellm_budget_usd: float | None = None,
+    litellm_rpm_limit: int | None = None,
+    litellm_tpm_limit: int | None = None,
+    skill_keys: list[str] | None = None,
+) -> AgentBuildSpec:
+    agent = get_agent(slug)
+    build_spec = agent.current_build_spec
+    if build_spec is None:
+        raise ValueError("Agent has no build spec.")
+    changed_fields: list[str] = ["updated_at"]
+    if personality_prompt is not None:
+        build_spec.personality_prompt = personality_prompt
+        changed_fields.append("personality_prompt")
+    if model_alias is not None:
+        build_spec.model_alias = model_alias
+        changed_fields.append("model_alias")
+    if gateway_port is not None:
+        build_spec.gateway_port = gateway_port
+        changed_fields.append("gateway_port")
+    if channel_config is not None:
+        build_spec.channel_config = channel_config
+        changed_fields.append("channel_config")
+    if litellm_budget_usd is not None:
+        build_spec.litellm_budget_usd = litellm_budget_usd
+        changed_fields.append("litellm_budget_usd")
+    if litellm_rpm_limit is not None:
+        build_spec.litellm_rpm_limit = litellm_rpm_limit
+        changed_fields.append("litellm_rpm_limit")
+    if litellm_tpm_limit is not None:
+        build_spec.litellm_tpm_limit = litellm_tpm_limit
+        changed_fields.append("litellm_tpm_limit")
+    build_spec.save(update_fields=changed_fields)
+    if skill_keys is not None:
+        build_spec.skill_bindings.all().delete()
+        for position, skill_key in enumerate(skill_keys):
+            skill = SkillCatalogEntry.objects.get(key=skill_key)
+            AgentSkillBinding.objects.create(build_spec=build_spec, skill=skill, position=position, enabled=True)
+    return build_spec
+
+
+def agent_skills_payload(slug: str) -> list[dict[str, Any]]:
+    build_spec = get_agent(slug).current_build_spec
+    if build_spec is None:
+        return []
+    return [
+        {
+            "key": binding.skill.key,
+            "display_name": binding.skill.display_name,
+            "description": binding.skill.description,
+            "position": binding.position,
+            "enabled": binding.enabled,
+        }
+        for binding in build_spec.skill_bindings.select_related("skill").order_by("position")
+    ]
+
+
+def agent_secret_bindings_payload(slug: str) -> list[dict[str, Any]]:
+    build_spec = get_agent(slug).current_build_spec
+    if build_spec is None:
+        return []
+    return [
+        {
+            "name": binding.secret.name,
+            "logical_role": binding.logical_role,
+            "secret_kind": binding.secret.secret_kind,
+            "masked_label": binding.secret.masked_label,
+            "required": binding.required,
+        }
+        for binding in build_spec.secret_bindings.select_related("secret").order_by("logical_role")
+    ]
+
+
+def agent_deployments_payload(slug: str) -> list[dict[str, Any]]:
+    agent = get_agent(slug)
+    return [
+        {
+            "id": deployment.pk,
+            "status": deployment.status,
+            "runtime_ref": deployment.runtime_ref,
+            "launched_at": deployment.launched_at.isoformat() if deployment.launched_at else None,
+            "stopped_at": deployment.stopped_at.isoformat() if deployment.stopped_at else None,
+            "last_error": deployment.last_error,
+        }
+        for deployment in agent.deployments.order_by("-created_at", "-pk")
+    ]
 
 def _current_runtime_key(api_url: str, runtime: Runtime) -> str | None:
     try:
@@ -1080,6 +1643,38 @@ def runtime_status_payload(runtime_id: str, *, api_url: str | None = None) -> di
 
 def _monitoring_env() -> dict[str, str]:
     return read_env_file(Path("monitoring-stack/.env"))
+
+
+def monitoring_surface_payload() -> dict[str, Any]:
+    env = _monitoring_env()
+    grafana_port = env.get("GRAFANA_PORT", "13000")
+    url = f"http://127.0.0.1:{grafana_port}"
+    if not env:
+        return {
+            "url": url,
+            "available": False,
+            "healthy": False,
+            "label": "Grafana offline",
+            "reason": "Monitoring stack is not bootstrapped.",
+        }
+    try:
+        response = requests.get(f"{url}/api/health", timeout=2)
+        response.raise_for_status()
+        return {
+            "url": url,
+            "available": True,
+            "healthy": True,
+            "label": "Open Grafana",
+            "reason": "",
+        }
+    except requests.RequestException as exc:
+        return {
+            "url": url,
+            "available": False,
+            "healthy": False,
+            "label": "Grafana offline",
+            "reason": str(exc),
+        }
 
 
 def _mask_sensitive_payload(value: Any, key_name: str | None = None) -> Any:

@@ -49,6 +49,180 @@ def _runtime_payload(runtime: Any) -> dict[str, Any]:
     }
 
 
+def _agent_payload(agent: Any) -> dict[str, Any]:
+    return _service().agent_payload(agent)
+
+
+@csrf_exempt
+@_operator_guard
+def agents_collection(request: HttpRequest) -> JsonResponse:
+    if request.method == "GET":
+        return JsonResponse({"items": [_agent_payload(agent) for agent in _service().list_agents()]})
+    if request.method == "POST":
+        payload = _json_body(request)
+        agent = _service().create_draft_agent(
+            _service().AgentCreateRequest(
+                name=payload["name"],
+                slug=payload["slug"],
+                description=payload.get("description", ""),
+                personality_prompt=payload.get("personality_prompt", ""),
+                model_alias=payload.get("model_alias") or "openai/qwen/qwen3.6-plus",
+                gateway_port=payload.get("gateway_port"),
+                runtime_template=payload.get("runtime_template") or "generic-runtime",
+                environment_profile=payload.get("environment_profile") or {},
+                startup_policy=payload.get("startup_policy") or {},
+                observability_profile=payload.get("observability_profile") or {},
+                autonomy_limits=payload.get("autonomy_limits") or {},
+                safety_limits=payload.get("safety_limits") or {},
+                channel_config=payload.get("channel_config") or {},
+                settings=payload.get("settings") or {},
+                secret_bindings=payload.get("secret_bindings") or {},
+                skill_keys=payload.get("skill_keys") or [],
+                litellm_budget_usd=payload.get("litellm_budget_usd"),
+                litellm_rpm_limit=payload.get("litellm_rpm_limit"),
+                litellm_tpm_limit=payload.get("litellm_tpm_limit"),
+            ),
+            actor=request.user,
+        )
+        return JsonResponse({"agent": _agent_payload(agent)}, status=201)
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
+@_operator_guard
+def agent_detail(request: HttpRequest, agent_slug: str) -> JsonResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    return JsonResponse(_service().agent_detail_payload(agent_slug))
+
+
+@csrf_exempt
+@_operator_guard
+def agent_build_spec(request: HttpRequest, agent_slug: str) -> JsonResponse:
+    if request.method == "GET":
+        return JsonResponse({"build_spec": _service().agent_detail_payload(agent_slug)["build_spec"]})
+    if request.method == "PATCH":
+        payload = _json_body(request)
+        build_spec = _service().update_agent_build_spec(
+            agent_slug,
+            personality_prompt=payload.get("personality_prompt"),
+            model_alias=payload.get("model_alias"),
+            gateway_port=payload.get("gateway_port"),
+            channel_config=payload.get("channel_config"),
+            litellm_budget_usd=payload.get("litellm_budget_usd"),
+            litellm_rpm_limit=payload.get("litellm_rpm_limit"),
+            litellm_tpm_limit=payload.get("litellm_tpm_limit"),
+            skill_keys=payload.get("skill_keys"),
+        )
+        return JsonResponse(
+            {
+                "build_spec": {
+                    "id": build_spec.pk,
+                    "personality_prompt": build_spec.personality_prompt,
+                    "model_alias": build_spec.model_alias,
+                    "gateway_port": build_spec.gateway_port,
+                    "litellm_budget_usd": build_spec.litellm_budget_usd,
+                    "litellm_rpm_limit": build_spec.litellm_rpm_limit,
+                    "litellm_tpm_limit": build_spec.litellm_tpm_limit,
+                }
+            }
+        )
+    return HttpResponseNotAllowed(["GET", "PATCH"])
+
+
+@_operator_guard
+def agent_skills(request: HttpRequest, agent_slug: str) -> JsonResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    return JsonResponse({"items": _service().agent_skills_payload(agent_slug)})
+
+
+@_operator_guard
+def agent_secrets(request: HttpRequest, agent_slug: str) -> JsonResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    return JsonResponse({"items": _service().agent_secret_bindings_payload(agent_slug)})
+
+
+@_operator_guard
+def agent_deployments(request: HttpRequest, agent_slug: str) -> JsonResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    return JsonResponse({"items": _service().agent_deployments_payload(agent_slug)})
+
+
+@csrf_exempt
+@_operator_guard
+def agent_launch(request: HttpRequest, agent_slug: str) -> JsonResponse:
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    deployment = _service().launch_agent(agent_slug, actor=request.user)
+    return JsonResponse({"deployment_id": deployment.pk, "status": deployment.status})
+
+
+@csrf_exempt
+@_operator_guard
+def agent_stop(request: HttpRequest, agent_slug: str) -> JsonResponse:
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    deployment = _service().stop_agent(agent_slug, actor=request.user)
+    return JsonResponse({"deployment_id": deployment.pk, "status": deployment.status})
+
+
+@_operator_guard
+def skills_catalog(request: HttpRequest) -> JsonResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    items = [
+        {
+            "key": skill.key,
+            "display_name": skill.display_name,
+            "description": skill.description,
+            "category": skill.category,
+            "source_path": skill.source_path,
+        }
+        for skill in _service().skill_catalog_entries()
+    ]
+    return JsonResponse({"items": items})
+
+
+@csrf_exempt
+@_operator_guard
+def workspace_secrets(request: HttpRequest) -> JsonResponse:
+    if request.method == "GET":
+        return JsonResponse(
+            {
+                "items": [
+                    {
+                        "id": secret.pk,
+                        "name": secret.name,
+                        "secret_kind": secret.secret_kind,
+                        "masked_label": secret.masked_label,
+                        "usage_scope": secret.usage_scope,
+                    }
+                    for secret in _service().list_workspace_secrets(actor=request.user)
+                ]
+            }
+        )
+    if request.method == "POST":
+        payload = _json_body(request)
+        secret = _service().upsert_workspace_secret(
+            payload["name"],
+            payload["secret_kind"],
+            payload.get("value", payload.get("secret_value", "")),
+            actor=request.user,
+        )
+        return JsonResponse(
+            {
+                "id": secret.pk,
+                "name": secret.name,
+                "secret_kind": secret.secret_kind,
+                "masked_label": secret.masked_label,
+            },
+            status=201,
+        )
+    return HttpResponseNotAllowed(["GET", "POST"])
+
+
 @csrf_exempt
 @_operator_guard
 def runtimes_collection(request: HttpRequest) -> JsonResponse:

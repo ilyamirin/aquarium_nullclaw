@@ -11,8 +11,13 @@ from django.db import connection
 from django.test import Client
 
 from controlplane.domain.models import (
+    Agent,
+    AgentBuildSpec,
+    AgentSecretBinding,
+    AgentSkillBinding,
     ConnectionScope,
     ConnectionStatus,
+    Deployment,
     IntegrationConnection,
     Plan,
     ProviderConnection,
@@ -24,19 +29,27 @@ from controlplane.domain.models import (
     RuntimeProfileSlug,
     RuntimeSecretRef,
     SecretKind,
+    SkillCatalogEntry,
+    Workspace,
     Tenant,
 )
 from orchestrator.litellm import DEFAULT_MODEL_ALIAS, DEFAULT_PROVIDER_MODEL, render_stack_config
 from orchestrator.models import RuntimeRecord, StateFile
 from orchestrator.service_layer import (
+    AgentCreateRequest,
     NULLCLAW_MAX_ACTIONS_PER_HOUR,
+    backfill_agents_from_runtimes,
+    create_draft_agent,
     delete_integration_connection_service,
     import_json_state_if_empty,
+    launch_agent,
     runtime_config_view,
+    stop_agent,
     test_runtime_secret as service_test_runtime_secret,
     update_runtime_limits,
     upsert_integration_connection,
     upsert_runtime_secret,
+    upsert_workspace_secret,
 )
 
 
@@ -564,11 +577,23 @@ def test_admin_home_is_read_only(operator_client: Client, runtime_fixture: Runti
         "orchestrator.service_layer.backfill_runtime_related_records",
         lambda runtime_id=None: (_ for _ in ()).throw(AssertionError("Admin home must not backfill records")),
     )
+    monkeypatch.setattr(
+        "orchestrator.service_layer.monitoring_surface_payload",
+        lambda: {
+            "url": "http://127.0.0.1:13000",
+            "available": False,
+            "healthy": False,
+            "label": "Grafana offline",
+            "reason": "Monitoring stack is not bootstrapped.",
+        },
+    )
 
     response = operator_client.get("/admin/")
 
     assert response.status_code == 200
     assert b"demo-runtime" in response.content
+    assert b"Grafana offline" in response.content
+    assert b">Offline<" in response.content
 
 
 @pytest.mark.django_db
@@ -898,3 +923,402 @@ def test_sqlite_connection_uses_wal_and_busy_timeout() -> None:
     assert connection.settings_dict["OPTIONS"]["timeout"] == 20
     assert busy_timeout == 20000
     assert journal_mode.lower() in {"wal", "memory"}
+
+
+@pytest.mark.django_db
+def test_agent_draft_launch_and_stop_flow(runtime_fixture: Runtime, monkeypatch) -> None:
+    monkeypatch.setattr("orchestrator.service_layer.ensure_controlplane_ready", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.import_json_state_if_empty", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.operator_token", lambda api_url: "operator-token")
+    monkeypatch.setattr(
+        "orchestrator.service_layer.ensure_project",
+        lambda *args, **kwargs: {
+            "id": "workspace-default-id",
+            "slug": "workspace-default",
+        },
+    )
+    monkeypatch.setattr("orchestrator.service_layer.upsert_secret", lambda *args, **kwargs: None)
+    monkeypatch.setattr("orchestrator.service_layer.read_secret_with_token", lambda *args, **kwargs: "resolved-secret")
+
+    upsert_workspace_secret("telegram-main", SecretKind.TELEGRAM_BOT_TOKEN, "telegram-secret-token")
+    upsert_workspace_secret("telegram-allow", SecretKind.TELEGRAM_ALLOW_FROM, "373793732")
+
+    monkeypatch.setattr(
+        "orchestrator.service_layer.bootstrap_skill_catalog",
+        lambda: [
+            SkillCatalogEntry.objects.create(
+                key="telegram-ops",
+                display_name="Telegram Ops",
+                description="Telegram-first operator behaviors",
+                source_path="skills/telegram_ops.md",
+            ),
+            SkillCatalogEntry.objects.create(
+                key="status-reporter",
+                display_name="Status Reporter",
+                description="Summaries and structured updates",
+                source_path="skills/status_reporter.md",
+            ),
+        ],
+    )
+
+    created_runtime_ids: list[str] = []
+
+    def fake_create_runtime(request, actor=None):
+        created_runtime_ids.append(request.runtime_id)
+        return Runtime.objects.create(
+            runtime_id=request.runtime_id,
+            enabled=True,
+            tenant=runtime_fixture.tenant,
+            plan=runtime_fixture.plan,
+            runtime_profile=runtime_fixture.runtime_profile,
+            gateway_port=request.gateway_port,
+            model=request.model,
+            telegram_enabled=request.telegram_enabled,
+            desired_channels={"telegram": request.telegram_enabled},
+            settings={"system_prompt": "compiled"},
+            infisical_project_slug=request.runtime_id,
+            infisical_project_id=f"project-{request.runtime_id}",
+            infisical_env="prod",
+            infisical_path="/runtime",
+            litellm_key_name=f"runtime-{request.runtime_id}",
+            litellm_budget_usd=request.budget_usd,
+            litellm_rpm_limit=request.rpm_limit,
+            litellm_tpm_limit=request.tpm_limit,
+            runtime_env_file=runtime_fixture.runtime_env_file,
+            runtime_home=runtime_fixture.runtime_home,
+            workspace_dir=runtime_fixture.workspace_dir,
+            generated_config_path=runtime_fixture.generated_config_path,
+        )
+
+    monkeypatch.setattr("orchestrator.service_layer.create_or_update_runtime", fake_create_runtime)
+    monkeypatch.setattr(
+        "orchestrator.service_layer.stop_runtime",
+        lambda runtime_id, actor=None: Runtime.objects.filter(runtime_id=runtime_id).update(lifecycle_status="stopped"),
+    )
+
+    agent = create_draft_agent(
+        AgentCreateRequest(
+            name="Research Bot",
+            slug="research-bot",
+            description="Telegram-first analyst",
+            personality_prompt="Be concise and analytical.",
+            model_alias=runtime_fixture.model,
+            gateway_port=3911,
+            channel_config={"telegram_enabled": True},
+            secret_bindings={
+                "telegram_bot_token": "telegram-main",
+                "telegram_allow_from": "telegram-allow",
+            },
+            skill_keys=["telegram-ops", "status-reporter"],
+            litellm_budget_usd=4.5,
+            litellm_rpm_limit=20,
+            litellm_tpm_limit=12000,
+        )
+    )
+
+    assert agent.status == "draft"
+    assert list(agent.current_build_spec.skill_bindings.order_by("position").values_list("skill__key", flat=True)) == [
+        "telegram-ops",
+        "status-reporter",
+    ]
+    assert agent.secret_bindings.count() == 2
+
+    deployment = launch_agent(agent.slug)
+    agent.refresh_from_db()
+
+    assert deployment.status == "running"
+    assert agent.status == "running"
+    assert agent.current_deployment == deployment
+    assert created_runtime_ids == ["research-bot"]
+
+    stopped = stop_agent(agent.slug)
+    agent.refresh_from_db()
+    deployment.refresh_from_db()
+
+    assert stopped.status == "stopped"
+    assert deployment.status == "stopped"
+    assert agent.status == "stopped"
+
+
+@pytest.mark.django_db
+def test_agent_api_and_operator_pages_render(operator_client: Client, runtime_fixture: Runtime, monkeypatch) -> None:
+    monkeypatch.setattr("orchestrator.service_layer.ensure_controlplane_ready", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.import_json_state_if_empty", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.operator_token", lambda api_url: "operator-token")
+    monkeypatch.setattr(
+        "orchestrator.service_layer.ensure_project",
+        lambda *args, **kwargs: {
+            "id": "workspace-default-id",
+            "slug": "workspace-default",
+        },
+    )
+    monkeypatch.setattr("orchestrator.service_layer.upsert_secret", lambda *args, **kwargs: None)
+    monkeypatch.setattr("orchestrator.service_layer.read_secret_with_token", lambda *args, **kwargs: "resolved-secret")
+
+    SkillCatalogEntry.objects.create(
+        key="telegram-ops",
+        display_name="Telegram Ops",
+        description="Telegram-first operator behaviors",
+        source_path="skills/telegram_ops.md",
+    )
+
+    created = operator_client.post(
+        "/api/workspace/secrets",
+        data=json.dumps(
+            {
+                "name": "telegram-main",
+                "secret_kind": SecretKind.TELEGRAM_BOT_TOKEN,
+                "value": "telegram-secret-token",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert created.status_code == 201
+    assert "telegram-secret-token" not in created.content.decode("utf-8")
+
+    agent_response = operator_client.post(
+        "/api/agents",
+        data=json.dumps(
+            {
+                "name": "Ops Bot",
+                "slug": "ops-bot",
+                "description": "Operator-facing Telegram agent",
+                "personality_prompt": "Be calm and useful.",
+                "model_alias": runtime_fixture.model,
+                "gateway_port": 3912,
+                "channel_config": {"telegram_enabled": True},
+                "secret_bindings": {"telegram_bot_token": "telegram-main"},
+                "skill_keys": ["telegram-ops"],
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert agent_response.status_code == 201
+    assert agent_response.json()["agent"]["slug"] == "ops-bot"
+    assert agent_response.json()["agent"]["status"] == "draft"
+
+    listing = operator_client.get("/api/agents")
+    catalog = operator_client.get("/api/skills/catalog")
+    vault = operator_client.get("/api/workspace/secrets")
+    home = operator_client.get("/admin/")
+    wizard = operator_client.get("/admin/agents/new/")
+    studio = operator_client.get("/admin/agents/ops-bot/")
+
+    assert listing.status_code == 200
+    assert any(item["slug"] == "ops-bot" for item in listing.json()["items"])
+    assert catalog.status_code == 200
+    assert catalog.json()["items"][0]["key"] == "telegram-ops"
+    assert vault.status_code == 200
+    assert vault.json()["items"][0]["name"] == "telegram-main"
+    assert home.status_code == 200
+    assert wizard.status_code == 200
+    assert studio.status_code == 200
+    assert b"Agent Home" in home.content
+    assert b"Create Agent" in wizard.content
+    assert b"Agent Studio" in studio.content
+
+
+@pytest.mark.django_db
+def test_agent_wizard_renders_personality_preset_cards(operator_client: Client, monkeypatch) -> None:
+    monkeypatch.setattr("orchestrator.service_layer.ensure_controlplane_ready", lambda: None)
+
+    response = operator_client.get("/admin/agents/new/")
+
+    assert response.status_code == 200
+    assert b"Choose a personality preset" in response.content
+    assert b"mara-field-operator" in response.content
+    assert b"Mara" in response.content
+    assert b"The Field Operator" in response.content
+
+
+@pytest.mark.django_db
+def test_admin_home_inline_agent_builder_renders_personality_preset_cards(
+    operator_client: Client, monkeypatch
+) -> None:
+    monkeypatch.setattr("orchestrator.service_layer.ensure_controlplane_ready", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.import_json_state_if_empty", lambda: None)
+
+    response = operator_client.get("/admin/")
+
+    assert response.status_code == 200
+    assert b"Choose a personality preset" in response.content
+    assert b"viktor-hard-reviewer" in response.content
+    assert b"Viktor" in response.content
+    assert b"The Hard Reviewer" in response.content
+
+
+@pytest.mark.django_db
+def test_agent_wizard_post_saves_custom_personality_prompt_exactly(
+    operator_client: Client, monkeypatch
+) -> None:
+    monkeypatch.setattr("orchestrator.service_layer.ensure_controlplane_ready", lambda: None)
+    custom_prompt = "  Custom prompt\nwith deliberate spacing\nand # symbols.  "
+
+    response = operator_client.post(
+        "/admin/agents/new/",
+        data={
+            "action": "create_agent_inline",
+            "name": "Custom Bot",
+            "slug": "custom-bot",
+            "description": "Uses edited personality text.",
+            "personality_prompt": custom_prompt,
+            "model_alias": "openai/qwen/qwen3.6-plus",
+            "gateway_port": "3915",
+            "telegram_enabled": "on",
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/admin/agents/custom-bot/"
+    assert AgentBuildSpec.objects.get(agent__slug="custom-bot").personality_prompt == custom_prompt
+
+
+@pytest.mark.django_db
+def test_agent_build_spec_and_deployments_api(operator_client: Client, runtime_fixture: Runtime, monkeypatch) -> None:
+    monkeypatch.setattr("orchestrator.service_layer.ensure_controlplane_ready", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.import_json_state_if_empty", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.operator_token", lambda api_url: "operator-token")
+    monkeypatch.setattr(
+        "orchestrator.service_layer.ensure_project",
+        lambda *args, **kwargs: {
+            "id": "workspace-default-id",
+            "slug": "workspace-default",
+        },
+    )
+    monkeypatch.setattr("orchestrator.service_layer.upsert_secret", lambda *args, **kwargs: None)
+    monkeypatch.setattr("orchestrator.service_layer.read_secret_with_token", lambda *args, **kwargs: "resolved-secret")
+    monkeypatch.setattr(
+        "orchestrator.service_layer.create_or_update_runtime",
+        lambda request, actor=None: Runtime.objects.create(
+            runtime_id=request.runtime_id,
+            enabled=True,
+            tenant=runtime_fixture.tenant,
+            plan=runtime_fixture.plan,
+            runtime_profile=runtime_fixture.runtime_profile,
+            gateway_port=request.gateway_port,
+            model=request.model,
+            telegram_enabled=request.telegram_enabled,
+            desired_channels={"telegram": request.telegram_enabled},
+            settings=request.settings or {},
+            infisical_project_slug=request.runtime_id,
+            infisical_project_id=f"project-{request.runtime_id}",
+            infisical_env="prod",
+            infisical_path="/runtime",
+            litellm_key_name=f"runtime-{request.runtime_id}",
+            runtime_env_file=runtime_fixture.runtime_env_file,
+            runtime_home=runtime_fixture.runtime_home,
+            workspace_dir=runtime_fixture.workspace_dir,
+            generated_config_path=runtime_fixture.generated_config_path,
+        ),
+    )
+
+    SkillCatalogEntry.objects.create(
+        key="telegram-ops",
+        display_name="Telegram Ops",
+        description="Telegram-first operator behaviors",
+        source_path="skills/telegram_ops.md",
+    )
+    operator_client.post(
+        "/api/workspace/secrets",
+        data=json.dumps({"name": "telegram-main", "secret_kind": SecretKind.TELEGRAM_BOT_TOKEN, "value": "token"}),
+        content_type="application/json",
+    )
+
+    created = operator_client.post(
+        "/api/agents",
+        data=json.dumps(
+            {
+                "name": "Planner Bot",
+                "slug": "planner-bot",
+                "personality_prompt": "Initial prompt",
+                "model_alias": runtime_fixture.model,
+                "gateway_port": 3913,
+                "channel_config": {"telegram_enabled": True},
+                "secret_bindings": {"telegram_bot_token": "telegram-main"},
+                "skill_keys": ["telegram-ops"],
+            }
+        ),
+        content_type="application/json",
+    )
+    assert created.status_code == 201
+
+    updated = operator_client.patch(
+        "/api/agents/planner-bot/build-spec",
+        data=json.dumps(
+            {
+                "personality_prompt": "Updated prompt",
+                "litellm_budget_usd": 3.2,
+                "litellm_rpm_limit": 22,
+                "skill_keys": ["telegram-ops"],
+            }
+        ),
+        content_type="application/json",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["build_spec"]["personality_prompt"] == "Updated prompt"
+
+    launched = operator_client.post("/api/agents/planner-bot/launch")
+    assert launched.status_code == 200
+
+    skills = operator_client.get("/api/agents/planner-bot/skills")
+    secrets = operator_client.get("/api/agents/planner-bot/secrets")
+    deployments = operator_client.get("/api/agents/planner-bot/deployments")
+
+    assert skills.status_code == 200
+    assert skills.json()["items"][0]["key"] == "telegram-ops"
+    assert secrets.status_code == 200
+    assert secrets.json()["items"][0]["logical_role"] == "telegram_bot_token"
+    assert deployments.status_code == 200
+    assert deployments.json()["items"][0]["status"] == "running"
+
+
+@pytest.mark.django_db
+def test_backfill_agents_from_existing_runtimes(runtime_fixture: Runtime, monkeypatch) -> None:
+    monkeypatch.setattr("orchestrator.service_layer.ensure_controlplane_ready", lambda: None)
+    monkeypatch.setattr("orchestrator.service_layer.import_json_state_if_empty", lambda: None)
+    monkeypatch.setattr(
+        "orchestrator.service_layer.ensure_workspace",
+        lambda actor=None, ensure_backend=False: Workspace.objects.create(
+            slug="default-workspace",
+            display_name="Default Workspace",
+            authelia_subject="local-operator",
+        ),
+    )
+
+    second_runtime = Runtime.objects.create(
+        runtime_id="probe",
+        enabled=True,
+        tenant=runtime_fixture.tenant,
+        plan=runtime_fixture.plan,
+        runtime_profile=runtime_fixture.runtime_profile,
+        gateway_port=3901,
+        model="openai/qwen/qwen3.6-plus",
+        telegram_enabled=False,
+        desired_channels={},
+        infisical_project_slug="probe",
+        infisical_project_id="project-probe",
+        infisical_env="prod",
+        infisical_path="/runtime",
+        litellm_key_name="runtime-probe",
+        litellm_budget_usd=1.0,
+        litellm_rpm_limit=10,
+        litellm_tpm_limit=10000,
+        runtime_env_file=runtime_fixture.runtime_env_file,
+        runtime_home=runtime_fixture.runtime_home,
+        workspace_dir=runtime_fixture.workspace_dir,
+        generated_config_path=runtime_fixture.generated_config_path,
+        lifecycle_status="running",
+        health_status="healthy",
+    )
+
+    created = backfill_agents_from_runtimes()
+
+    assert created == 2
+    assert Agent.objects.count() == 2
+    demo_agent = Agent.objects.get(slug=runtime_fixture.runtime_id)
+    probe_agent = Agent.objects.get(slug=second_runtime.runtime_id)
+    assert demo_agent.current_build_spec.gateway_port == runtime_fixture.gateway_port
+    assert demo_agent.current_deployment.runtime_ref == runtime_fixture.runtime_id
+    assert probe_agent.status == "running"
+    assert probe_agent.current_deployment.status == "running"

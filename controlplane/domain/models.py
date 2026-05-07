@@ -17,6 +17,11 @@ class TenantStatus(models.TextChoices):
     DISABLED = "disabled", "Disabled"
 
 
+class WorkspaceStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    DISABLED = "disabled", "Disabled"
+
+
 class PlanStatus(models.TextChoices):
     ACTIVE = "active", "Active"
     DISABLED = "disabled", "Disabled"
@@ -98,6 +103,29 @@ class ChatRole(models.TextChoices):
     SYSTEM = "system", "System"
 
 
+class AgentStatus(models.TextChoices):
+    DRAFT = "draft", "Draft"
+    READY = "ready", "Ready"
+    LAUNCHING = "launching", "Launching"
+    RUNNING = "running", "Running"
+    STOPPED = "stopped", "Stopped"
+    DEGRADED = "degraded", "Degraded"
+    ERROR = "error", "Error"
+
+
+class DeploymentStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    LAUNCHING = "launching", "Launching"
+    RUNNING = "running", "Running"
+    STOPPED = "stopped", "Stopped"
+    FAILED = "failed", "Failed"
+
+
+class PrimaryChannel(models.TextChoices):
+    TELEGRAM = "telegram", "Telegram"
+    INTERNAL = "internal", "Internal"
+
+
 class Tenant(TimestampedModel):
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=255)
@@ -108,6 +136,23 @@ class Tenant(TimestampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class Workspace(TimestampedModel):
+    slug = models.SlugField(unique=True)
+    display_name = models.CharField(max_length=255)
+    authelia_subject = models.CharField(max_length=255, unique=True)
+    status = models.CharField(max_length=32, choices=WorkspaceStatus.choices, default=WorkspaceStatus.ACTIVE)
+    infisical_project_slug = models.CharField(max_length=255, default="workspace-default")
+    infisical_project_id = models.CharField(max_length=255, blank=True)
+    infisical_env = models.CharField(max_length=64, default="prod")
+    infisical_path = models.CharField(max_length=255, default="/workspace")
+
+    class Meta:
+        ordering = ["slug"]
+
+    def __str__(self) -> str:
+        return self.display_name
 
 
 class Plan(TimestampedModel):
@@ -181,6 +226,106 @@ class ProviderModel(TimestampedModel):
         return self.alias
 
 
+class Agent(TimestampedModel):
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="agents")
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=32, choices=AgentStatus.choices, default=AgentStatus.DRAFT)
+    primary_channel = models.CharField(max_length=32, choices=PrimaryChannel.choices, default=PrimaryChannel.TELEGRAM)
+    current_build_spec = models.ForeignKey(
+        "AgentBuildSpec",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    current_deployment = models.ForeignKey(
+        "Deployment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    last_launched_at = models.DateTimeField(null=True, blank=True)
+    last_interaction_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["slug"]
+
+    @property
+    def secret_bindings(self):
+        if self.current_build_spec_id is None:
+            return AgentSecretBinding.objects.none()
+        return self.current_build_spec.secret_bindings.all()
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class AgentBuildSpec(TimestampedModel):
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name="build_specs")
+    personality_prompt = models.TextField(blank=True)
+    model_alias = models.CharField(max_length=255, default="openai/qwen/qwen3.6-plus")
+    runtime_template = models.CharField(max_length=255, default="generic-runtime")
+    gateway_port = models.PositiveIntegerField(default=0)
+    environment_profile = models.JSONField(default=dict, blank=True)
+    startup_policy = models.JSONField(default=dict, blank=True)
+    observability_profile = models.JSONField(default=dict, blank=True)
+    autonomy_limits = models.JSONField(default=dict, blank=True)
+    safety_limits = models.JSONField(default=dict, blank=True)
+    channel_config = models.JSONField(default=dict, blank=True)
+    settings = models.JSONField(default=dict, blank=True)
+    litellm_budget_usd = models.FloatField(null=True, blank=True)
+    litellm_rpm_limit = models.IntegerField(null=True, blank=True)
+    litellm_tpm_limit = models.IntegerField(null=True, blank=True)
+    build_state = models.CharField(max_length=32, choices=AgentStatus.choices, default=AgentStatus.DRAFT)
+
+    class Meta:
+        ordering = ["-updated_at", "-pk"]
+
+    def __str__(self) -> str:
+        return f"{self.agent.slug} build"
+
+
+class SkillCatalogEntry(TimestampedModel):
+    key = models.SlugField(unique=True)
+    display_name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=255, blank=True)
+    source_path = models.CharField(max_length=1024)
+    compatibility_rules = models.JSONField(default=dict, blank=True)
+    default_enabled = models.BooleanField(default=False)
+    is_enabled = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self) -> str:
+        return self.display_name
+
+
+class Secret(TimestampedModel):
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="secrets")
+    name = models.SlugField()
+    secret_kind = models.CharField(max_length=64, choices=SecretKind.choices)
+    backend_ref = models.CharField(max_length=255, blank=True)
+    backend_secret_name = models.CharField(max_length=255)
+    usage_scope = models.CharField(max_length=64, default="workspace")
+    masked_label = models.CharField(max_length=255, blank=True)
+    last_verified_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["workspace", "name"], name="unique_workspace_secret_name"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Runtime(TimestampedModel):
     runtime_id = models.SlugField(unique=True)
     enabled = models.BooleanField(default=True)
@@ -234,6 +379,39 @@ class Runtime(TimestampedModel):
         return self.runtime_id
 
 
+class AgentSkillBinding(TimestampedModel):
+    build_spec = models.ForeignKey(AgentBuildSpec, on_delete=models.CASCADE, related_name="skill_bindings")
+    skill = models.ForeignKey(SkillCatalogEntry, on_delete=models.CASCADE, related_name="agent_bindings")
+    position = models.PositiveIntegerField(default=0)
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["position", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["build_spec", "skill"], name="unique_skill_per_build_spec"),
+            models.UniqueConstraint(fields=["build_spec", "position"], name="unique_skill_position_per_build_spec"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.build_spec.agent.slug}:{self.skill.key}"
+
+
+class AgentSecretBinding(TimestampedModel):
+    build_spec = models.ForeignKey(AgentBuildSpec, on_delete=models.CASCADE, related_name="secret_bindings")
+    secret = models.ForeignKey(Secret, on_delete=models.CASCADE, related_name="agent_bindings")
+    logical_role = models.CharField(max_length=255)
+    required = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["logical_role"]
+        constraints = [
+            models.UniqueConstraint(fields=["build_spec", "logical_role"], name="unique_secret_role_per_build_spec"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.build_spec.agent.slug}:{self.logical_role}"
+
+
 class IntegrationConnection(TimestampedModel):
     name = models.SlugField(unique=True)
     display_name = models.CharField(max_length=255)
@@ -251,6 +429,24 @@ class IntegrationConnection(TimestampedModel):
 
     def __str__(self) -> str:
         return self.display_name
+
+
+class Deployment(TimestampedModel):
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name="deployments")
+    build_spec = models.ForeignKey(AgentBuildSpec, on_delete=models.CASCADE, related_name="deployments")
+    runtime = models.ForeignKey(Runtime, null=True, blank=True, on_delete=models.SET_NULL, related_name="deployments")
+    status = models.CharField(max_length=32, choices=DeploymentStatus.choices, default=DeploymentStatus.PENDING)
+    runtime_ref = models.CharField(max_length=255, blank=True)
+    launch_summary = models.JSONField(default=dict, blank=True)
+    launched_at = models.DateTimeField(null=True, blank=True)
+    stopped_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self) -> str:
+        return f"{self.agent.slug}:{self.status}"
 
 
 class RuntimeSecretRef(TimestampedModel):

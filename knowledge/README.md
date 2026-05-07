@@ -13,6 +13,8 @@ Use the two layers intentionally:
 
 Current platform shape:
 
+- `Authelia` is the intended SSO boundary for the control plane
+- `Agent` is becoming the primary product object in the UI/API
 - `NullClaw` is the hosted runtime
 - `LiteLLM` is the mandatory LLM gateway
 - `Infisical` is the secrets source-of-truth
@@ -35,7 +37,7 @@ If you want the public demo story first, start with:
 - [orchestrator.md](orchestrator.md)
   Primary control-plane document: local state layout, generated compose, CLI commands, and runtime lifecycle rules.
 - [controlplane.md](controlplane.md)
-  Django + Unfold web control plane, DB-backed state model, operator UI, JSON API, and management commands.
+  Django + Unfold web control plane, DB-backed state model, Authelia-compatible entrypoints, agent-first UI/API, and management commands.
 - [litellm-gateway.md](litellm-gateway.md)
   LiteLLM-first gateway model, provider boundary, runtime keys, bootstrap flow, UI/API access, budgets, and current compatibility findings.
 - [administration.md](administration.md)
@@ -100,3 +102,14 @@ If you specifically need the LiteLLM setup and operator path, read in this order
 1. [install-and-setup.md](install-and-setup.md)
 2. [litellm-gateway.md](litellm-gateway.md)
 3. [administration.md](administration.md)
+
+If you specifically need the new agent-cloud direction, read in this order:
+
+1. [controlplane.md](controlplane.md)
+2. [orchestrator.md](orchestrator.md)
+3. [`../docs/superpowers/specs/2026-05-07-agent-cloud-v1-design.md`](../docs/superpowers/specs/2026-05-07-agent-cloud-v1-design.md)
+
+If you specifically need Agent Builder personality presets, read:
+
+1. [controlplane.md](controlplane.md)
+2. [`../docs/superpowers/specs/2026-05-07-nullclaw-personality-presets-design.md`](../docs/superpowers/specs/2026-05-07-nullclaw-personality-presets-design.md)

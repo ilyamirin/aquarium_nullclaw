@@ -1,11 +1,19 @@
 {% extends "admin/operator_base.html" %}
 
 {% block operator_header_actions %}
+{% if monitoring.available %}
 <a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Open Grafana</a>
+{% else %}
+<span class="op-button secondary is-disabled" aria-disabled="true" title="{{ monitoring.reason }}">Grafana offline</span>
+{% endif %}
 {% endblock %}
 
 {% block operator_body %}
 <section class="op-stat-grid">
+  <article class="op-stat">
+    <div class="op-stat-label">Agents</div>
+    <div class="op-stat-value">{{ agent_count }}</div>
+  </article>
   <article class="op-stat">
     <div class="op-stat-label">Runtimes</div>
     <div class="op-stat-value">{{ runtime_count }}</div>
@@ -20,16 +28,17 @@
   </article>
   <article class="op-stat">
     <div class="op-stat-label">Monitoring</div>
-    <div class="op-stat-value">Live</div>
+    <div class="op-stat-value op-stat-value-small">{% if monitoring.healthy %}Live{% else %}Offline{% endif %}</div>
   </article>
 </section>
 
 <section class="op-grid cols-3">
   <article class="op-card">
-    <h2>Runtime Operations</h2>
-    <p class="op-note">Create new runtimes, review existing ones and jump straight into lifecycle, diagnostics or chat.</p>
+    <h2>Agent Home</h2>
+    <p class="op-note">Create draft agents, open Agent Studio, and keep runtime execution as a secondary deployment detail.</p>
     <div class="op-actions">
-      <a href="/admin/runtime-wizard/" class="op-button primary">Open Runtime Wizard</a>
+      <a href="#create-agent" class="op-button primary">Create Agent</a>
+      <a href="/admin/vault/" class="op-button secondary">Workspace Vault</a>
     </div>
   </article>
   <article class="op-card">
@@ -46,9 +55,66 @@
     <h2>Observability</h2>
     <p class="op-note">Control plane summaries stay here. Deep traces, logs and metrics stay in the monitoring stack.</p>
     <div class="op-actions">
+      {% if monitoring.available %}
       <a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Grafana</a>
+      {% else %}
+      <span class="op-button secondary is-disabled" aria-disabled="true" title="{{ monitoring.reason }}">Grafana offline</span>
+      {% endif %}
     </div>
   </article>
+</section>
+
+<section class="op-card">
+  <div class="op-anchor" id="create-agent"></div>
+  <h2>Create Agent</h2>
+  <p class="op-note">Draft creation now stays on the same page. Use the separate route only as a fallback surface.</p>
+  {% include "admin/_agent_builder_form.html" with agent_form_action="create_agent_inline" agent_submit_label="Create Draft Agent" %}
+</section>
+
+<section class="op-card">
+  <h2>Agent Inventory</h2>
+  {% if agent_details %}
+  <table class="op-table">
+    <thead>
+      <tr>
+        <th>Agent</th>
+        <th>Status</th>
+        <th>Primary Channel</th>
+        <th>Model</th>
+        <th>Last Launch</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for agent in agent_details %}
+      <tr>
+        <td>
+          <strong><a href="/admin/agents/{{ agent.slug }}/">{{ agent.name }}</a></strong><br>
+          <span class="op-note">{{ agent.slug }}</span>
+        </td>
+        <td>
+          <span class="op-badge {% if agent.status == 'running' %}ok{% elif agent.status == 'draft' or agent.status == 'ready' %}neutral{% elif agent.status == 'stopped' %}warn{% else %}error{% endif %}">
+            {{ agent.status }}
+          </span>
+        </td>
+        <td>{{ agent.primary_channel }}</td>
+        <td>{{ agent.model|default:"-" }}</td>
+        <td>{{ agent.last_launch|default:"-" }}</td>
+        <td>
+          <div class="op-inline-actions">
+            <a href="/admin/agents/{{ agent.slug }}/" class="op-button secondary">Studio</a>
+            {% if agent.current_deployment %}
+            <a href="/admin/runtimes/{{ agent.slug }}/diagnostics/" class="op-button secondary">Diagnostics</a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="op-empty">No agents yet. Start with Create Agent and launch explicitly from Agent Studio.</div>
+  {% endif %}
 </section>
 
 <section class="op-card">

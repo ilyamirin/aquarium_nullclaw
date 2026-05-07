@@ -1,0 +1,32 @@
+{% extends "admin/operator_base.html" %}
+
+{% block operator_body %}
+<section class="op-card">
+  <h2>Workspace Vault</h2>
+  <p class="op-note">Secret values remain write-only. This view shows metadata and binding targets only.</p>
+  {% if secrets %}
+  <table class="op-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Kind</th>
+        <th>Scope</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for secret in secrets %}
+      <tr>
+        <td>{{ secret.name }}</td>
+        <td>{{ secret.secret_kind }}</td>
+        <td>{{ secret.usage_scope }}</td>
+        <td>{{ secret.masked_label|default:"Configured" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="op-empty">No workspace secrets yet. Create them through the agent-first API or future inline forms.</div>
+  {% endif %}
+</section>
+{% endblock %}
