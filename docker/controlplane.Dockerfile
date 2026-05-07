@@ -11,4 +11,4 @@ COPY scripts /app/scripts
 
 RUN pip install --no-cache-dir -e .[dev]
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000", "--noreload"]
+CMD ["sh", "/app/scripts/controlplane-container-start.sh"]

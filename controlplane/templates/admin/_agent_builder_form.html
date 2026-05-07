@@ -1,0 +1,99 @@
+<form method="post" class="op-form">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="{{ agent_form_action|default:'create_agent_inline' }}">
+  {% if workspace_secret_error %}
+  <div class="op-banner warning">
+    Workspace secret metadata is temporarily unavailable: {{ workspace_secret_error }}. You can still edit the draft shape, but secret-backed launch paths will stay blocked until the secret backend is reachable.
+  </div>
+  {% endif %}
+  <div class="op-grid cols-2">
+    <label>
+      <span class="op-label">Name</span>
+      <input class="op-input" type="text" name="name" required>
+    </label>
+    <label>
+      <span class="op-label">Slug</span>
+      <input class="op-input" type="text" name="slug" required>
+    </label>
+    <label>
+      <span class="op-label">Model Alias</span>
+      <select class="op-input" name="model_alias">
+        {% for model in agent_models %}
+        <option value="{{ model.alias }}">{{ model.alias }}</option>
+        {% empty %}
+        <option value="openai/qwen/qwen3.6-plus">openai/qwen/qwen3.6-plus</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="op-label">Gateway Port</span>
+      <input class="op-input" type="number" name="gateway_port" value="3910">
+    </label>
+  </div>
+  <label>
+    <span class="op-label">Description</span>
+    <textarea class="op-input" name="description" rows="2"></textarea>
+  </label>
+  <label>
+    <span class="op-label">Personality Prompt</span>
+    <textarea class="op-input" name="personality_prompt" rows="6" placeholder="You are calm, reliable, and concise."></textarea>
+  </label>
+  <div class="op-grid cols-2">
+    <label class="op-check">
+      <input type="checkbox" name="telegram_enabled" checked>
+      <span>Telegram is the primary external channel</span>
+    </label>
+    <div></div>
+    <label>
+      <span class="op-label">Telegram Bot Secret</span>
+      <select class="op-input" name="telegram_bot_secret">
+        <option value="">Select secret</option>
+        {% for secret in workspace_secrets %}
+        <option value="{{ secret.name }}">{{ secret.name }} · {{ secret.secret_kind }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="op-label">Telegram Allow-From Secret</span>
+      <select class="op-input" name="telegram_allow_secret">
+        <option value="">Optional</option>
+        {% for secret in workspace_secrets %}
+        <option value="{{ secret.name }}">{{ secret.name }} · {{ secret.secret_kind }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="op-grid cols-3">
+    <label>
+      <span class="op-label">LiteLLM Budget USD</span>
+      <input class="op-input" type="number" name="litellm_budget_usd" step="0.01">
+    </label>
+    <label>
+      <span class="op-label">LiteLLM RPM</span>
+      <input class="op-input" type="number" name="litellm_rpm_limit">
+    </label>
+    <label>
+      <span class="op-label">LiteLLM TPM</span>
+      <input class="op-input" type="number" name="litellm_tpm_limit">
+    </label>
+  </div>
+  <fieldset class="op-fieldset">
+    <legend>Ordered Skills</legend>
+    <div class="op-grid cols-2">
+      {% for skill in skill_catalog %}
+      <label class="op-check">
+        <input type="checkbox" name="skill_keys" value="{{ skill.key }}">
+        <span><strong>{{ skill.display_name }}</strong><br><span class="op-note">{{ skill.description }}</span></span>
+      </label>
+      {% empty %}
+      <div class="op-empty">No curated skills available yet.</div>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <div class="op-actions">
+    <button class="op-button primary" type="submit">{{ agent_submit_label|default:"Create Draft Agent" }}</button>
+    {% if agent_cancel_href %}
+    <a href="{{ agent_cancel_href }}" class="op-button secondary">{{ agent_cancel_label|default:"Back" }}</a>
+    {% endif %}
+  </div>
+</form>

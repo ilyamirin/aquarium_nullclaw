@@ -33,7 +33,8 @@ The stack is local-first and intentionally simple:
 
 - loopback-only host exposure
 - no reverse proxy in front of Loki, Tempo, Mimir, or Alloy
-- Grafana is the only operator-facing authenticated UI
+- Grafana is the operator-facing monitoring UI and should be entered through `https://grafana.aquarium.local`
+- local browser automation can also use `https://grafana.lvh.me`
 
 ## Signal Flow
 
@@ -87,6 +88,7 @@ This mirrors the rest of Aquarium:
 
 - Infisical is the secret source-of-truth
 - local `.env` holds only bootstrap material required to start the container and fetch real secrets
+- local `.env` also carries `GRAFANA_PUBLIC_URL` so Grafana can render perimeter-native absolute URLs
 
 ## Runtime OTEL Integration
 
@@ -125,6 +127,11 @@ Tracked bootstrap/runtime helpers:
 - [scripts/bootstrap-monitoring-stack.sh](/Users/ilyagmirin/PycharmProjects/aquarium/scripts/bootstrap-monitoring-stack.sh)
 - [scripts/grafana-infisical-entrypoint.sh](/Users/ilyagmirin/PycharmProjects/aquarium/scripts/grafana-infisical-entrypoint.sh)
 - [docker/grafana-infisical.Dockerfile](/Users/ilyagmirin/PycharmProjects/aquarium/docker/grafana-infisical.Dockerfile)
+
+## Perimeter Behavior
+
+- Grafana is perimeter-gated by `Authelia` and configured for proxy-auth using the forwarded `Remote-User` header.
+- The monitoring stack keeps the loopback host port `13000` for local health/debug access, but the supported operator browser path is the perimeter route.
 
 Ignored local state:
 
@@ -165,9 +172,12 @@ If monitoring is added later, rerun `runtime create` for each runtime you want t
 
 ## Local Endpoints
 
-Loopback-only operator endpoints:
+Operator-facing UI endpoint:
 
-- Grafana: `http://127.0.0.1:13000`
+- Grafana: `http://grafana.aquarium.local`
+
+Internal and health-check endpoints:
+
 - Alloy UI: `http://127.0.0.1:12345`
 - Loki: `http://127.0.0.1:13100`
 - Tempo: `http://127.0.0.1:13200`

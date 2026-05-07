@@ -256,9 +256,60 @@
     color: #be123c;
   }
 
+  .op-button.is-disabled,
+  .op-button[aria-disabled="true"] {
+    background: #f8fafc;
+    border-color: #d0d5dd;
+    color: #98a2b3;
+    cursor: default;
+    pointer-events: none;
+  }
+
   .op-form {
     display: grid;
     gap: 0.95rem;
+  }
+
+  .op-label {
+    display: inline-block;
+    margin-bottom: 0.35rem;
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: #344054;
+  }
+
+  .op-input {
+    width: 100%;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.8rem;
+    border: 1px solid #d0d5dd;
+    background: #ffffff;
+    color: #101828;
+    font: inherit;
+    box-sizing: border-box;
+  }
+
+  .op-check {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    color: #344054;
+    font-weight: 600;
+  }
+
+  .op-fieldset {
+    border: 1px solid #e4e7ec;
+    border-radius: 0.8rem;
+    padding: 0.95rem 1rem;
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .op-fieldset legend {
+    padding: 0 0.35rem;
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: #344054;
   }
 
   .op-form-grid {
@@ -336,9 +387,45 @@
     background: #fcfcfd;
   }
 
+  .op-banner {
+    padding: 0.9rem 1rem;
+    border-radius: 0.9rem;
+    border: 1px solid #d0d5dd;
+    line-height: 1.5;
+  }
+
+  .op-banner.warning {
+    color: #92400e;
+    background: #fffaeb;
+    border-color: #fedf89;
+  }
+
   .op-meta {
     display: grid;
     gap: 0.55rem;
+  }
+
+  .op-definition-list {
+    display: grid;
+    gap: 0.7rem;
+    margin: 0;
+  }
+
+  .op-definition-list > div {
+    display: grid;
+    grid-template-columns: minmax(9rem, 14rem) 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .op-definition-list dt {
+    color: #667085;
+    font-weight: 700;
+  }
+
+  .op-definition-list dd {
+    margin: 0;
+    color: #101828;
   }
 
   .op-meta-row {
@@ -381,6 +468,16 @@
 
   .op-pre {
     white-space: pre-wrap;
+  }
+
+  .op-ordered-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #344054;
+  }
+
+  .op-ordered-list li + li {
+    margin-top: 0.35rem;
   }
 
   .op-split {

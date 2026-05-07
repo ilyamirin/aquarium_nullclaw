@@ -96,7 +96,7 @@ make monitoring-health
 
 Expected URLs:
 
-- `http://127.0.0.1:13000`
+- `http://grafana.aquarium.local`
 - `http://127.0.0.1:13100/ready`
 - `http://127.0.0.1:13200/ready`
 - `http://127.0.0.1:13300/ready`

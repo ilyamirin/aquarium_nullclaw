@@ -26,7 +26,9 @@ The goal is to distinguish:
 
 Primary operator endpoint:
 
-- `http://127.0.0.1:15000/admin/`
+- `http://app.aquarium.local/admin/`
+
+Direct loopback `runserver` URLs are now a dev/debug path, not the supported operator entrypoint.
 
 Main pages:
 
@@ -85,7 +87,7 @@ Do not:
 Use one of:
 
 ```bash
-curl -sS http://127.0.0.1:15000/admin/login/
+curl -I -H 'Host: app.aquarium.local' http://127.0.0.1/auth/login/
 ```
 
 or:
@@ -143,7 +145,7 @@ Treat these as supporting evidence, not the only source of truth.
 For Codex-style automation, prefer the bundled wrapper:
 
 ```bash
-/Users/ilyagmirin/.codex/skills/playwright/scripts/playwright_cli.sh open http://127.0.0.1:15000/admin/login/
+/Users/ilyagmirin/.codex/skills/playwright/scripts/playwright_cli.sh open http://app.aquarium.local/auth/login/
 ```
 
 Then use:
@@ -180,7 +182,7 @@ The mutating pass proves the UI actually drives the real platform.
 
 Minimum route coverage:
 
-1. log in to `/admin/login/`
+1. log in through `/auth/login/`
 2. open `/admin/`
 3. open runtime detail for `test-nullclaw`
 4. open diagnostics for `test-nullclaw`

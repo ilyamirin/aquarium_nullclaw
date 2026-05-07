@@ -20,6 +20,7 @@ from controlplane.domain.models import (
 )
 
 WIZARD_SESSION_KEY = "controlplane_runtime_wizard"
+AGENT_WIZARD_SESSION_KEY = "controlplane_agent_wizard"
 
 
 def _service():
@@ -66,6 +67,21 @@ def _operator_context(*, title: str, active_page: str, page_description: str, **
     return context
 
 
+def _agent_builder_context(*, actor: Any = None) -> dict[str, Any]:
+    workspace_secrets = []
+    workspace_secret_error = ""
+    try:
+        workspace_secrets = _service().list_workspace_secrets(actor=actor)
+    except Exception as exc:  # noqa: BLE001
+        workspace_secret_error = str(exc)
+    return {
+        "workspace_secrets": workspace_secrets,
+        "workspace_secret_error": workspace_secret_error,
+        "agent_models": ProviderModel.objects.filter(is_enabled=True).order_by("alias"),
+        "skill_catalog": _service().skill_catalog_entries(),
+    }
+
+
 def _runtime_nav(runtime_id: str, active: str) -> list[dict[str, str | bool]]:
     return [
         {"label": "Overview", "href": f"/admin/runtimes/{runtime_id}/", "active": active == "overview"},
@@ -74,8 +90,17 @@ def _runtime_nav(runtime_id: str, active: str) -> list[dict[str, str | bool]]:
     ]
 
 
-def _operator_home_context() -> dict[str, Any]:
+def _agent_nav(agent_slug: str, active: str) -> list[dict[str, str | bool]]:
+    return [
+        {"label": "Studio", "href": f"/admin/agents/{agent_slug}/", "active": active == "studio"},
+        {"label": "Diagnostics", "href": f"/admin/runtimes/{agent_slug}/diagnostics/", "active": active == "diagnostics"},
+        {"label": "Internal Test", "href": f"/admin/runtimes/{agent_slug}/chat/", "active": active == "chat"},
+    ]
+
+
+def _operator_home_context(*, actor: Any = None) -> dict[str, Any]:
     runtimes = _service().list_runtimes()
+    agents = _service().list_agents()
     monitoring = _service().monitoring_surface_payload()
     return _operator_context(
         title="Aquarium Operator Console",
@@ -83,11 +108,15 @@ def _operator_home_context() -> dict[str, Any]:
         page_description="Единая операторская точка входа для runtime lifecycle, конфигурации, секретов и диагностики.",
         monitoring=monitoring,
         monitoring_direct_url=monitoring["url"],
+        agents=agents,
+        agent_details=[_service().agent_payload(agent) for agent in agents],
+        agent_count=len(agents),
         runtimes=runtimes,
         runtime_details=[_service().runtime_inventory_payload(runtime) for runtime in runtimes],
         runtime_count=len(runtimes),
         unhealthy_count=sum(1 for runtime in runtimes if runtime.health_status not in {"healthy", "unknown"}),
         recent_actions=RuntimeActionLog.objects.select_related("runtime").all()[:20],
+        **_agent_builder_context(actor=actor),
     )
 
 
@@ -252,7 +281,37 @@ def _integration_form_state(connection: IntegrationConnection | None) -> dict[st
 
 
 def admin_home_view(request: HttpRequest) -> HttpResponse:
-    return render(request, "admin/operator_home.html", _operator_home_context())
+    if request.method == "POST" and request.POST.get("action") == "create_agent_inline":
+        try:
+            agent = _service().create_draft_agent(
+                _service().AgentCreateRequest(
+                    name=request.POST.get("name", "").strip(),
+                    slug=request.POST.get("slug", "").strip(),
+                    description=request.POST.get("description", "").strip(),
+                    personality_prompt=request.POST.get("personality_prompt", "").strip(),
+                    model_alias=request.POST.get("model_alias") or "openai/qwen/qwen3.6-plus",
+                    gateway_port=_int_from_post(request.POST.get("gateway_port")),
+                    channel_config={"telegram_enabled": _bool_from_post(request.POST.get("telegram_enabled"))},
+                    secret_bindings={
+                        key: value
+                        for key, value in {
+                            "telegram_bot_token": request.POST.get("telegram_bot_secret", "").strip(),
+                            "telegram_allow_from": request.POST.get("telegram_allow_secret", "").strip(),
+                        }.items()
+                        if value
+                    },
+                    skill_keys=request.POST.getlist("skill_keys"),
+                    litellm_budget_usd=_float_from_post(request.POST.get("litellm_budget_usd")),
+                    litellm_rpm_limit=_int_from_post(request.POST.get("litellm_rpm_limit")),
+                    litellm_tpm_limit=_int_from_post(request.POST.get("litellm_tpm_limit")),
+                ),
+                actor=request.user,
+            )
+            messages.success(request, f"Created draft agent {agent.slug}.")
+            return redirect(f"/admin/agents/{agent.slug}/")
+        except Exception as exc:  # noqa: BLE001
+            messages.error(request, str(exc))
+    return render(request, "admin/operator_home.html", _operator_home_context(actor=request.user))
 
 
 def dashboard_view(request: HttpRequest) -> HttpResponse:
@@ -261,6 +320,109 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 
 def runtimes_view(request: HttpRequest) -> HttpResponse:
     return redirect("/admin/")
+
+
+def agent_wizard_view(request: HttpRequest) -> HttpResponse:
+    if request.method == "POST":
+        try:
+            agent = _service().create_draft_agent(
+                _service().AgentCreateRequest(
+                    name=request.POST.get("name", "").strip(),
+                    slug=request.POST.get("slug", "").strip(),
+                    description=request.POST.get("description", "").strip(),
+                    personality_prompt=request.POST.get("personality_prompt", "").strip(),
+                    model_alias=request.POST.get("model_alias") or "openai/qwen/qwen3.6-plus",
+                    gateway_port=_int_from_post(request.POST.get("gateway_port")),
+                    channel_config={"telegram_enabled": _bool_from_post(request.POST.get("telegram_enabled"))},
+                    secret_bindings={
+                        key: value
+                        for key, value in {
+                            "telegram_bot_token": request.POST.get("telegram_bot_secret", "").strip(),
+                            "telegram_allow_from": request.POST.get("telegram_allow_secret", "").strip(),
+                        }.items()
+                        if value
+                    },
+                    skill_keys=request.POST.getlist("skill_keys"),
+                    litellm_budget_usd=_float_from_post(request.POST.get("litellm_budget_usd")),
+                    litellm_rpm_limit=_int_from_post(request.POST.get("litellm_rpm_limit")),
+                    litellm_tpm_limit=_int_from_post(request.POST.get("litellm_tpm_limit")),
+                ),
+                actor=request.user,
+            )
+            messages.success(request, f"Created draft agent {agent.slug}.")
+            return redirect(f"/admin/agents/{agent.slug}/")
+        except Exception as exc:  # noqa: BLE001
+            messages.error(request, str(exc))
+
+    return render(
+        request,
+        "admin/agent_wizard.html",
+        _operator_context(
+            title="Create Agent",
+            active_page="agent-wizard",
+            page_description="Создай draft-агента, а запуск вынеси в отдельный explicit launch шаг в Studio.",
+            **_agent_builder_context(actor=request.user),
+        ),
+    )
+
+
+def agent_studio_view(request: HttpRequest, agent_slug: str) -> HttpResponse:
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        try:
+            if action == "save_build_spec":
+                _service().update_agent_build_spec(
+                    agent_slug,
+                    personality_prompt=request.POST.get("personality_prompt"),
+                    model_alias=request.POST.get("model_alias"),
+                    gateway_port=_int_from_post(request.POST.get("gateway_port")),
+                    litellm_budget_usd=_float_from_post(request.POST.get("litellm_budget_usd")),
+                    litellm_rpm_limit=_int_from_post(request.POST.get("litellm_rpm_limit")),
+                    litellm_tpm_limit=_int_from_post(request.POST.get("litellm_tpm_limit")),
+                )
+                messages.success(request, f"Saved build spec for {agent_slug}.")
+            elif action == "launch":
+                _service().launch_agent(agent_slug, actor=request.user)
+                messages.success(request, f"Launched {agent_slug}.")
+            elif action == "stop":
+                _service().stop_agent(agent_slug, actor=request.user)
+                messages.success(request, f"Stopped {agent_slug}.")
+        except Exception as exc:  # noqa: BLE001
+            messages.error(request, str(exc))
+        return redirect(f"/admin/agents/{agent_slug}/")
+
+    detail = _service().agent_detail_payload(agent_slug)
+    return render(
+        request,
+        "admin/agent_studio.html",
+        _operator_context(
+            title=f"Agent Studio · {detail['agent']['name']}",
+            active_page="agent-studio",
+            page_description="Configuration-first surface for personality, skills, secrets, build spec and explicit launch controls.",
+            detail=detail,
+            agent_subnav=_agent_nav(agent_slug, "studio"),
+        ),
+    )
+
+
+def workspace_vault_view(request: HttpRequest) -> HttpResponse:
+    secrets: list[Any] = []
+    secret_error = ""
+    try:
+        secrets = _service().list_workspace_secrets(actor=request.user)
+    except Exception as exc:  # noqa: BLE001
+        secret_error = str(exc)
+    return render(
+        request,
+        "admin/workspace_vault.html",
+        _operator_context(
+            title="Workspace Vault",
+            active_page="workspace-vault",
+            page_description="Workspace-scoped secret metadata with write-only values backed by the current secret storage layer.",
+            secrets=secrets,
+            secret_error=secret_error,
+        ),
+    )
 
 
 def runtime_detail_view(request: HttpRequest, runtime_id: str) -> HttpResponse:

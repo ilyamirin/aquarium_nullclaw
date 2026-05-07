@@ -21,6 +21,13 @@ The runtime-management stack is now split into three layers:
 - `orchestrator/cli.py`
   thin local operator adapter over the same service layer
 
+The current direction is now explicitly **agent-first**:
+
+- `Agent` is the primary product object
+- `AgentBuildSpec` is the editable recipe
+- `Deployment` is the execution record
+- `Runtime` remains the internal execution substrate and compatibility layer
+
 Important rule:
 
 - the web control plane does **not** shell out to the CLI
@@ -47,6 +54,14 @@ Why both exist:
 
 Core models:
 
+- `Workspace`
+- `Agent`
+- `AgentBuildSpec`
+- `SkillCatalogEntry`
+- `AgentSkillBinding`
+- `Secret`
+- `AgentSecretBinding`
+- `Deployment`
 - `Tenant`
 - `Plan`
 - `RuntimeProfile`
@@ -95,6 +110,14 @@ That creates:
 - password: `admin`
 - email: `admin@aquarium.local`
 
+SSO-compatible entrypoints:
+
+- `LOGIN_URL` now points to `/auth/login/`
+- `LOGOUT_REDIRECT_URL` now points to `/auth/logout/`
+- `controlplane.domain.auth.AutheliaRemoteUserMiddleware` auto-creates/logs in a staff operator when the configured Authelia header is present
+- default header name is `HTTP_REMOTE_USER`
+- `AUTHELIA_LOGIN_URL`, `AUTHELIA_LOGOUT_URL`, and `AUTHELIA_HEADER_USER` are environment-overridable
+
 Run the web UI locally:
 
 ```bash
@@ -108,11 +131,21 @@ Local endpoint:
 Perimeter bootstrap and local operator entrypoints:
 
 - `make perimeter-bootstrap` writes `perimeter-stack/.env` without rotating existing Authelia secrets on rerun
-- if `perimeter-stack/authelia/users_database.yml` is missing, bootstrap creates it once from either:
+- if `perimeter-stack/authelia/users_database.yml` is missing, bootstrap creates it once with either:
   - `AUTHELIA_ADMIN_PASSWORD_HASH`
   - `AUTHELIA_ADMIN_PASSWORD`
   - or a one-time generated local admin password printed during bootstrap
-- public local perimeter entrypoints default to `http://app.aquarium.local`, `http://auth.aquarium.local`, `http://grafana.aquarium.local`, and `http://secrets.aquarium.local`
+- default local public operator URLs are:
+  - `https://app.aquarium.local`
+  - `https://auth.aquarium.local`
+  - `https://grafana.aquarium.local`
+  - `https://secrets.aquarium.local`
+- local browser automation can also use the perimeter aliases:
+  - `https://app.lvh.me`
+  - `https://auth.lvh.me`
+  - `https://grafana.lvh.me`
+  - `https://secrets.lvh.me`
+- the containerized perimeter control plane starts through `scripts/controlplane-container-start.sh`, which applies Django migrations before `runserver`
 
 Use `make controlplane-check` for a quick Django health/config check.
 
@@ -123,6 +156,10 @@ The operator UI is the Django admin styled through Unfold.
 Current pages and flows:
 
 - Admin root operator landing page
+- Agent Home
+- Create Agent wizard at `/admin/agents/new/`
+- Agent Studio at `/admin/agents/<agent_slug>/`
+- Workspace Vault at `/admin/vault/`
 - Runtime list and custom runtime detail
 - Runtime wizard with staged setup flow
 - Runtime diagnostics page
@@ -136,7 +173,16 @@ Current pages and flows:
 The important operator decision is now explicit:
 
 - raw Django model forms are secondary
-- the main operator surface is the dedicated runtime page at `/admin/runtimes/<runtime_id>/`
+- the main product surface is now agent-first
+- the dedicated runtime page at `/admin/runtimes/<runtime_id>/` remains available as a secondary execution/diagnostics surface during migration
+
+Agent-first surfaces:
+
+- `/admin/` now shows `Agent Home` first and keeps runtime inventory below it
+- `/admin/agents/new/` creates a **draft** only
+- `/admin/agents/<slug>/` is the configuration-first Agent Studio
+- launch and stop are explicit actions from Agent Studio
+- internal test chat still routes through the existing runtime chat page when a deployment exists
 
 That runtime page aggregates:
 
@@ -196,6 +242,12 @@ The JSON API is operator-first and lives under `/api/`.
 
 Implemented resource groups:
 
+- `/api/agents`
+- `/api/agents/<id>`
+- `/api/agents/<id>/launch`
+- `/api/agents/<id>/stop`
+- `/api/skills/catalog`
+- `/api/workspace/secrets`
 - `/api/runtimes`
 - `/api/runtimes/<id>/limits`
 - `/api/runtimes/<id>/keys/<action>`
@@ -215,8 +267,14 @@ Security posture:
 
 - login required
 - staff-only
-- anonymous requests are redirected to Django admin login
+- anonymous requests are redirected to `/auth/login/`
 - non-staff authenticated users receive `403`
+
+Workspace/agent contract:
+
+- single operator / single workspace for v1
+- workspace secrets are stored in the current secret backend and surfaced as write-only metadata in the UI/API
+- agent creation stores config first; launch resolves secret bindings and compiles them into runtime inputs
 
 ## Diagnostics Model
 

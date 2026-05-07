@@ -11,7 +11,7 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       DB_CONNECTION_URI: postgresql://infisical:${POSTGRES_PASSWORD}@db:5432/infisical
       REDIS_URL: redis://redis:6379
-      SITE_URL: ${SITE_URL:-http://127.0.0.1:18080}
+      SITE_URL: ${SITE_URL:-https://secrets.aquarium.local}
       PORT: 8080
       HTTPS_ENABLED: "false"
     ports:
@@ -24,6 +24,9 @@ services:
     volumes:
       - ./data/backend:/var/opt/infisical
     restart: unless-stopped
+    networks:
+      - default
+      - perimeter
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/status"]
       interval: 30s
@@ -54,3 +57,8 @@ services:
     volumes:
       - ./data/redis:/data
     restart: unless-stopped
+
+networks:
+  perimeter:
+    external: true
+    name: aquarium-perimeter

@@ -130,11 +130,11 @@ make infisical-health
 Expected:
 
 - `http://127.0.0.1:18080/api/status` responds
-- the UI is available on `http://127.0.0.1:18080`
+- the supported UI entry is `http://secrets.aquarium.local`
 
 ## Step 6: Create The First Infisical Admin
 
-Open [http://127.0.0.1:18080](http://127.0.0.1:18080) and create the first user.
+Open [http://secrets.aquarium.local](http://secrets.aquarium.local) and create the first user.
 
 Then authenticate the local CLI:
 
@@ -213,7 +213,7 @@ Expected:
 
 - `monitoring-core` exists in Infisical
 - `monitoring-stack/.env` exists and is ignored
-- Grafana responds on `http://127.0.0.1:13000`
+- Grafana responds through `http://grafana.aquarium.local`
 - Loki responds on `http://127.0.0.1:13100/ready`
 - Tempo responds on `http://127.0.0.1:13200/ready`
 - Mimir responds on `http://127.0.0.1:13300/ready`
@@ -301,6 +301,7 @@ make controlplane-run
 Expected:
 
 - [http://127.0.0.1:15000/admin/](http://127.0.0.1:15000/admin/) responds
+- [http://app.aquarium.local](http://app.aquarium.local) is the supported browser entry when the perimeter stack is running
 - login works with the bootstrap operator
 - runtime list shows the imported runtimes
 - runtime detail pages are populated instead of empty raw tables

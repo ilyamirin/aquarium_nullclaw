@@ -7,11 +7,12 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[2]
 SECRET_KEY = os.environ.get("CONTROLPLANE_SECRET_KEY", "aquarium-controlplane-dev-secret-key")
 DEBUG = os.environ.get("CONTROLPLANE_DEBUG", "true").lower() == "true"
-CONTROLPLANE_PUBLIC_URL = os.environ.get("CONTROLPLANE_PUBLIC_URL", "http://app.aquarium.local")
-GRAFANA_PUBLIC_URL = os.environ.get("GRAFANA_PUBLIC_URL", "http://grafana.aquarium.local")
-SECRETS_PUBLIC_URL = os.environ.get("SECRETS_PUBLIC_URL", "http://secrets.aquarium.local")
+CONTROLPLANE_PUBLIC_URL = os.environ.get("CONTROLPLANE_PUBLIC_URL", "https://app.aquarium.local")
+GRAFANA_PUBLIC_URL = os.environ.get("GRAFANA_PUBLIC_URL", "https://grafana.aquarium.local")
+SECRETS_PUBLIC_URL = os.environ.get("SECRETS_PUBLIC_URL", "https://secrets.aquarium.local")
+AUTHELIA_PUBLIC_URL = os.environ.get("AUTHELIA_PUBLIC_URL", "https://auth.aquarium.local")
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "app.aquarium.local"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "app.aquarium.local", "app.lvh.me"]
 CSRF_TRUSTED_ORIGINS = [CONTROLPLANE_PUBLIC_URL]
 
 INSTALLED_APPS = [
@@ -31,6 +32,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "controlplane.domain.auth.AutheliaRemoteUserMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -76,9 +78,13 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / ".aquarium" / "state" / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-LOGIN_URL = "/admin/login/"
+AUTHELIA_HEADER_USER = os.environ.get("AUTHELIA_HEADER_USER", "HTTP_REMOTE_USER")
+AUTHELIA_LOGIN_URL = os.environ.get("AUTHELIA_LOGIN_URL", AUTHELIA_PUBLIC_URL)
+AUTHELIA_LOGOUT_URL = os.environ.get("AUTHELIA_LOGOUT_URL", f"{AUTHELIA_PUBLIC_URL}/logout")
+AUTHELIA_DEFAULT_REDIRECT = os.environ.get("AUTHELIA_DEFAULT_REDIRECT", "/admin/")
+LOGIN_URL = "/auth/login/"
 LOGIN_REDIRECT_URL = "/admin/"
-LOGOUT_REDIRECT_URL = "/admin/login/"
+LOGOUT_REDIRECT_URL = "/auth/logout/"
 
 UNFOLD = {
     "SITE_TITLE": "Aquarium Control Plane",
@@ -95,6 +101,8 @@ UNFOLD = {
                 "title": "Operator Console",
                 "items": [
                     {"title": "Home", "icon": "dashboard", "link": "/admin/"},
+                    {"title": "Create Agent", "icon": "smart_toy", "link": "/admin/agents/new/"},
+                    {"title": "Workspace Vault", "icon": "key", "link": "/admin/vault/"},
                     {"title": "Runtime Wizard", "icon": "build", "link": "/admin/runtime-wizard/"},
                 ],
             },

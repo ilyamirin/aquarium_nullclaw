@@ -5,12 +5,20 @@ from django.shortcuts import redirect
 from django.urls import path, re_path
 
 from controlplane.domain import api, views
+from controlplane.domain.auth import authelia_login_view, authelia_logout_view
 
 
 urlpatterns = [
     path("", lambda request: redirect("/admin/")),
+    path("auth/login/", authelia_login_view, name="controlplane-login"),
+    path("auth/logout/", authelia_logout_view, name="controlplane-logout"),
+    path("admin/login/", authelia_login_view, name="controlplane-admin-login"),
+    path("admin/logout/", authelia_logout_view, name="controlplane-admin-logout"),
     path("admin/", admin.site.admin_view(views.admin_home_view), name="controlplane-home"),
     path("admin/dashboard/", admin.site.admin_view(views.dashboard_view), name="controlplane-dashboard"),
+    path("admin/agents/new/", admin.site.admin_view(views.agent_wizard_view), name="controlplane-agent-wizard"),
+    path("admin/agents/<str:agent_slug>/", admin.site.admin_view(views.agent_studio_view), name="controlplane-agent-studio"),
+    path("admin/vault/", admin.site.admin_view(views.workspace_vault_view), name="controlplane-workspace-vault"),
     path("admin/runtimes/", admin.site.admin_view(views.runtimes_view), name="controlplane-runtimes"),
     path("admin/runtime-wizard/", admin.site.admin_view(views.runtime_wizard_view), name="controlplane-runtime-wizard"),
     path("admin/runtimes/<str:runtime_id>/", admin.site.admin_view(views.runtime_detail_view), name="controlplane-runtime-detail"),
@@ -45,6 +53,16 @@ urlpatterns = [
     re_path(r"^admin/domain/runtimeactionlog(?:/.*)?$", admin.site.admin_view(views.raw_action_log_admin_redirect_view)),
     re_path(r"^admin/domain/runtimechatsession(?:/.*)?$", admin.site.admin_view(views.raw_chat_session_redirect_view)),
     path("admin/", admin.site.urls),
+    path("api/agents", api.agents_collection, name="api-agents"),
+    path("api/agents/<str:agent_slug>", api.agent_detail, name="api-agent-detail"),
+    path("api/agents/<str:agent_slug>/build-spec", api.agent_build_spec, name="api-agent-build-spec"),
+    path("api/agents/<str:agent_slug>/skills", api.agent_skills, name="api-agent-skills"),
+    path("api/agents/<str:agent_slug>/secrets", api.agent_secrets, name="api-agent-secrets"),
+    path("api/agents/<str:agent_slug>/deployments", api.agent_deployments, name="api-agent-deployments"),
+    path("api/agents/<str:agent_slug>/launch", api.agent_launch, name="api-agent-launch"),
+    path("api/agents/<str:agent_slug>/stop", api.agent_stop, name="api-agent-stop"),
+    path("api/skills/catalog", api.skills_catalog, name="api-skills-catalog"),
+    path("api/workspace/secrets", api.workspace_secrets, name="api-workspace-secrets"),
     path("api/runtimes", api.runtimes_collection, name="api-runtimes"),
     path("api/runtimes/<str:runtime_id>", api.runtime_detail, name="api-runtime-detail"),
     path("api/runtimes/<str:runtime_id>/limits", api.runtime_limits, name="api-runtime-limits"),
