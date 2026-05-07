@@ -48,6 +48,28 @@ from orchestrator.service_layer import (
 )
 
 
+def _write_internal_skill_manifest(package_dir: Path, **overrides) -> None:
+    package_dir.mkdir(parents=True)
+    (package_dir / "SKILL.md").write_text("# Test Skill\n", encoding="utf-8")
+    manifest = {
+        "key": package_dir.name,
+        "display_name": "Test Skill",
+        "description": "Loaded from a test manifest.",
+        "category": "Diagnostics",
+        "type": "hybrid",
+        "source": "internal",
+        "trust_status": "internal",
+        "required_integrations": ["telegram"],
+        "required_secrets": ["TELEGRAM_BOT_TOKEN"],
+        "required_services": ["monitoring"],
+        "permissions": ["diagnostics_read"],
+        "entrypoints": ["diagnostics.summary"],
+        "default_enabled": False,
+    }
+    manifest.update(overrides)
+    (package_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
 @pytest.fixture
 def operator_client(db) -> Client:
     user = get_user_model().objects.create_user(
@@ -194,27 +216,11 @@ def test_bootstrap_reference_data_creates_internal_operator_skill_catalog_idempo
 @pytest.mark.django_db
 def test_bootstrap_internal_skill_catalog_reads_manifest_source_of_truth(monkeypatch, tmp_path) -> None:
     package_dir = tmp_path / "skills" / "manifest-backed"
-    package_dir.mkdir(parents=True)
-    (package_dir / "SKILL.md").write_text("# Manifest Backed\n", encoding="utf-8")
-    (package_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "key": "manifest-backed",
-                "display_name": "Manifest Backed",
-                "description": "Loaded from the package manifest.",
-                "category": "Diagnostics",
-                "type": "hybrid",
-                "source": "internal",
-                "trust_status": "internal",
-                "required_integrations": ["telegram"],
-                "required_secrets": ["TELEGRAM_BOT_TOKEN"],
-                "required_services": ["monitoring"],
-                "permissions": ["diagnostics_read"],
-                "entrypoints": ["diagnostics.summary"],
-                "default_enabled": False,
-            }
-        ),
-        encoding="utf-8",
+    _write_internal_skill_manifest(
+        package_dir,
+        key="manifest-backed",
+        display_name="Manifest Backed",
+        description="Loaded from the package manifest.",
     )
 
     monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", tmp_path / "skills")
@@ -236,6 +242,40 @@ def test_bootstrap_internal_skill_catalog_reads_manifest_source_of_truth(monkeyp
     assert skill.entrypoints == ["diagnostics.summary"]
     assert skill.default_enabled is False
     assert skill.status == "active"
+
+
+def test_internal_skill_manifest_entries_rejects_duplicate_keys(monkeypatch, tmp_path) -> None:
+    skills_dir = tmp_path / "skills"
+    _write_internal_skill_manifest(skills_dir / "alpha", key="duplicate-skill")
+    _write_internal_skill_manifest(skills_dir / "bravo", key="duplicate-skill")
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", skills_dir)
+
+    with pytest.raises(ValueError, match="duplicate internal skill manifest key 'duplicate-skill'"):
+        internal_skill_manifest_entries()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_message"),
+    [
+        ("display_name", 123, "display_name must be a string"),
+        ("default_enabled", "false", "default_enabled must be a bool"),
+        ("required_services", ["monitoring", 7], "required_services must be a list of strings"),
+        ("permissions", "diagnostics_read", "permissions must be a list of strings"),
+    ],
+)
+def test_internal_skill_manifest_entries_rejects_malformed_field_types(
+    monkeypatch,
+    tmp_path,
+    field: str,
+    value,
+    expected_message: str,
+) -> None:
+    skills_dir = tmp_path / "skills"
+    _write_internal_skill_manifest(skills_dir / "malformed", **{field: value})
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", skills_dir)
+
+    with pytest.raises(ValueError, match=expected_message):
+        internal_skill_manifest_entries()
 
 
 @pytest.mark.django_db

@@ -88,7 +88,7 @@ skills/<skill-key>/
   README.md
 ```
 
-`SKILL.md` is the agent-facing operator instruction. `manifest.json` is the machine-readable source of truth for display metadata, dependencies, permissions, default-enabled state, and adapter entrypoints. The Django bootstrap path reads `skills/*/manifest.json` and upserts that metadata into `SkillCatalogEntry` through `bootstrap_reference_data()`, so repeated startup/import/migration flows do not create duplicates and catalog/API behavior follows the tracked package manifests.
+`SKILL.md` is the agent-facing operator instruction. `manifest.json` is the machine-readable source of truth for display metadata, dependencies, permissions, default-enabled state, and adapter entrypoints. The Django bootstrap path reads `skills/*/manifest.json` and upserts that metadata into `SkillCatalogEntry` through `bootstrap_reference_data()`, so repeated startup/import/migration flows do not create duplicates and catalog/API behavior follows the tracked package manifests. Manifest loading fails fast before any catalog write if required fields are missing, if two packages declare the same `key`, or if manifest-driven fields use the wrong JSON type. Scalar manifest fields (`key`, `display_name`, `description`, `category`, `type`, `source`, `trust_status`) must be strings, `default_enabled` must be a boolean, and dependency/capability fields (`required_integrations`, `required_secrets`, `required_services`, `permissions`, `entrypoints`) must be arrays of strings.
 
 The v1 internal catalog contains:
 

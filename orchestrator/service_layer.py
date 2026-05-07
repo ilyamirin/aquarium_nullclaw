@@ -182,6 +182,22 @@ REQUIRED_INTERNAL_SKILL_MANIFEST_FIELDS = {
     "entrypoints",
     "default_enabled",
 }
+INTERNAL_SKILL_MANIFEST_STRING_FIELDS = {
+    "key",
+    "display_name",
+    "description",
+    "category",
+    "type",
+    "source",
+    "trust_status",
+}
+INTERNAL_SKILL_MANIFEST_STRING_LIST_FIELDS = {
+    "required_integrations",
+    "required_secrets",
+    "required_services",
+    "permissions",
+    "entrypoints",
+}
 
 
 def ensure_controlplane_ready() -> None:
@@ -228,6 +244,7 @@ def bootstrap_internal_skill_catalog() -> None:
 
 def internal_skill_manifest_entries() -> list[dict[str, Any]]:
     manifests = []
+    manifest_paths_by_key: dict[str, Path] = {}
     for manifest_path in sorted(INTERNAL_SKILLS_DIR.glob("*/manifest.json")):
         package_dir = manifest_path.parent
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -235,6 +252,14 @@ def internal_skill_manifest_entries() -> list[dict[str, Any]]:
         if missing_fields:
             missing = ", ".join(sorted(missing_fields))
             raise ValueError(f"{manifest_path} is missing required fields: {missing}")
+        _validate_internal_skill_manifest_types(manifest_path, manifest)
+        previous_path = manifest_paths_by_key.get(manifest["key"])
+        if previous_path is not None:
+            raise ValueError(
+                f"{manifest_path} has duplicate internal skill manifest key "
+                f"'{manifest['key']}' already declared by {previous_path}"
+            )
+        manifest_paths_by_key[manifest["key"]] = manifest_path
         if manifest["source"] != SkillSource.INTERNAL or manifest["trust_status"] != SkillTrustStatus.INTERNAL:
             raise ValueError(f"{manifest_path} must be an internal trusted skill manifest")
         if manifest["type"] not in SkillType.values:
@@ -242,6 +267,18 @@ def internal_skill_manifest_entries() -> list[dict[str, Any]]:
         manifest["source_path"] = _internal_skill_source_path(package_dir)
         manifests.append(manifest)
     return manifests
+
+
+def _validate_internal_skill_manifest_types(manifest_path: Path, manifest: dict[str, Any]) -> None:
+    for field in sorted(INTERNAL_SKILL_MANIFEST_STRING_FIELDS):
+        if not isinstance(manifest[field], str):
+            raise ValueError(f"{manifest_path} field {field} must be a string")
+    if not isinstance(manifest["default_enabled"], bool):
+        raise ValueError(f"{manifest_path} field default_enabled must be a bool")
+    for field in sorted(INTERNAL_SKILL_MANIFEST_STRING_LIST_FIELDS):
+        value = manifest[field]
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise ValueError(f"{manifest_path} field {field} must be a list of strings")
 
 
 def _internal_skill_source_path(package_dir: Path) -> str:
