@@ -1,6 +1,8 @@
 {
   "key": "telegram-operator",
   "display_name": "Telegram Operator",
+  "description": "Diagnose Telegram-facing runtime behavior and guide channel-specific setup.",
+  "category": "Channels and Integrations",
   "type": "hybrid",
   "source": "internal",
   "trust_status": "internal",
@@ -8,5 +10,6 @@
   "required_secrets": ["TELEGRAM_BOT_TOKEN"],
   "required_services": [],
   "permissions": ["diagnostics_read", "integration_test"],
-  "entrypoints": ["telegram.status", "telegram.test", "diagnostics.summary"]
+  "entrypoints": ["telegram.status", "telegram.test", "diagnostics.summary"],
+  "default_enabled": false
 }

@@ -34,9 +34,11 @@ from orchestrator.litellm import DEFAULT_MODEL_ALIAS, DEFAULT_PROVIDER_MODEL, re
 from orchestrator.models import RuntimeRecord, StateFile
 from orchestrator.service_layer import (
     NULLCLAW_MAX_ACTIONS_PER_HOUR,
+    bootstrap_internal_skill_catalog,
     bootstrap_reference_data,
     delete_integration_connection_service,
     import_json_state_if_empty,
+    internal_skill_manifest_entries,
     runtime_config_view,
     skill_catalog_payload,
     test_runtime_secret as service_test_runtime_secret,
@@ -157,19 +159,8 @@ def test_skill_catalog_entry_defaults_to_internal_behavior_skill() -> None:
 
 @pytest.mark.django_db
 def test_bootstrap_reference_data_creates_internal_operator_skill_catalog_idempotently() -> None:
-    expected_keys = {
-        "runtime-operator",
-        "incident-analyst",
-        "log-trace-investigator",
-        "litellm-limits-manager",
-        "secret-checker",
-        "telegram-operator",
-        "release-smoke-tester",
-        "support-triage",
-        "ops-reporter",
-        "gitea-operator",
-        "kanboard-operator",
-    }
+    manifests = {manifest["key"]: manifest for manifest in internal_skill_manifest_entries()}
+    expected_keys = set(manifests)
 
     bootstrap_reference_data()
     bootstrap_reference_data()
@@ -180,43 +171,94 @@ def test_bootstrap_reference_data_creates_internal_operator_skill_catalog_idempo
     assert SkillCatalogEntry.objects.filter(key="runtime-operator").count() == 1
 
     runtime_operator = SkillCatalogEntry.objects.get(key="runtime-operator")
-    assert runtime_operator.skill_type == SkillType.EXECUTABLE
-    assert runtime_operator.source == SkillSource.INTERNAL
-    assert runtime_operator.trust_status == SkillTrustStatus.INTERNAL
-    assert runtime_operator.source_path == "skills/runtime-operator/SKILL.md"
-    assert runtime_operator.category == "Runtime Operations"
-    assert runtime_operator.required_services == ["controlplane"]
-    assert runtime_operator.permissions == ["runtime_read", "runtime_lifecycle"]
-    assert runtime_operator.entrypoints == ["runtime.status", "runtime.start", "runtime.stop", "runtime.restart", "runtime.smoke_test"]
-    assert runtime_operator.default_enabled is True
+    runtime_operator_manifest = manifests["runtime-operator"]
+    assert runtime_operator.skill_type == runtime_operator_manifest["type"]
+    assert runtime_operator.source == runtime_operator_manifest["source"]
+    assert runtime_operator.trust_status == runtime_operator_manifest["trust_status"]
+    assert runtime_operator.source_path == runtime_operator_manifest["source_path"]
+    assert runtime_operator.category == runtime_operator_manifest["category"]
+    assert runtime_operator.required_services == runtime_operator_manifest["required_services"]
+    assert runtime_operator.permissions == runtime_operator_manifest["permissions"]
+    assert runtime_operator.entrypoints == runtime_operator_manifest["entrypoints"]
+    assert runtime_operator.default_enabled == runtime_operator_manifest["default_enabled"]
     assert runtime_operator.status == "active"
 
     support_triage = SkillCatalogEntry.objects.get(key="support-triage")
-    assert support_triage.skill_type == SkillType.BEHAVIOR
-    assert support_triage.required_integrations == []
-    assert support_triage.permissions == []
-    assert support_triage.default_enabled is True
+    support_triage_manifest = manifests["support-triage"]
+    assert support_triage.skill_type == support_triage_manifest["type"]
+    assert support_triage.required_integrations == support_triage_manifest["required_integrations"]
+    assert support_triage.permissions == support_triage_manifest["permissions"]
+    assert support_triage.default_enabled == support_triage_manifest["default_enabled"]
+
+
+@pytest.mark.django_db
+def test_bootstrap_internal_skill_catalog_reads_manifest_source_of_truth(monkeypatch, tmp_path) -> None:
+    package_dir = tmp_path / "skills" / "manifest-backed"
+    package_dir.mkdir(parents=True)
+    (package_dir / "SKILL.md").write_text("# Manifest Backed\n", encoding="utf-8")
+    (package_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "key": "manifest-backed",
+                "display_name": "Manifest Backed",
+                "description": "Loaded from the package manifest.",
+                "category": "Diagnostics",
+                "type": "hybrid",
+                "source": "internal",
+                "trust_status": "internal",
+                "required_integrations": ["telegram"],
+                "required_secrets": ["TELEGRAM_BOT_TOKEN"],
+                "required_services": ["monitoring"],
+                "permissions": ["diagnostics_read"],
+                "entrypoints": ["diagnostics.summary"],
+                "default_enabled": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", tmp_path / "skills")
+
+    bootstrap_internal_skill_catalog()
+
+    skill = SkillCatalogEntry.objects.get(key="manifest-backed")
+    assert skill.display_name == "Manifest Backed"
+    assert skill.description == "Loaded from the package manifest."
+    assert skill.category == "Diagnostics"
+    assert skill.skill_type == SkillType.HYBRID
+    assert skill.source == SkillSource.INTERNAL
+    assert skill.trust_status == SkillTrustStatus.INTERNAL
+    assert skill.source_path == str(Path("skills/manifest-backed/SKILL.md"))
+    assert skill.required_integrations == ["telegram"]
+    assert skill.required_secrets == ["TELEGRAM_BOT_TOKEN"]
+    assert skill.required_services == ["monitoring"]
+    assert skill.permissions == ["diagnostics_read"]
+    assert skill.entrypoints == ["diagnostics.summary"]
+    assert skill.default_enabled is False
+    assert skill.status == "active"
 
 
 @pytest.mark.django_db
 def test_skill_catalog_payload_includes_operator_skill_dependency_and_trust_fields() -> None:
+    manifests = {manifest["key"]: manifest for manifest in internal_skill_manifest_entries()}
     bootstrap_reference_data()
 
     payload = skill_catalog_payload()
     by_key = {item["key"]: item for item in payload["items"]}
 
     gitea = by_key["gitea-operator"]
-    assert gitea["skill_type"] == "executable"
-    assert gitea["source"] == "internal"
-    assert gitea["trust_status"] == "internal"
-    assert gitea["source_path"] == "skills/gitea-operator/SKILL.md"
-    assert gitea["category"] == "Channels and Integrations"
-    assert gitea["required_integrations"] == ["gitea"]
-    assert gitea["required_secrets"] == ["GITEA_TOKEN"]
-    assert gitea["required_services"] == ["gitea"]
-    assert gitea["permissions"] == ["gitea_api"]
-    assert gitea["entrypoints"] == ["gitea.repositories", "gitea.issues", "gitea.pull_requests"]
-    assert gitea["default_enabled"] is False
+    manifest = manifests["gitea-operator"]
+    assert gitea["skill_type"] == manifest["type"]
+    assert gitea["source"] == manifest["source"]
+    assert gitea["trust_status"] == manifest["trust_status"]
+    assert gitea["source_path"] == manifest["source_path"]
+    assert gitea["category"] == manifest["category"]
+    assert gitea["required_integrations"] == manifest["required_integrations"]
+    assert gitea["required_secrets"] == manifest["required_secrets"]
+    assert gitea["required_services"] == manifest["required_services"]
+    assert gitea["permissions"] == manifest["permissions"]
+    assert gitea["entrypoints"] == manifest["entrypoints"]
+    assert gitea["default_enabled"] == manifest["default_enabled"]
     assert gitea["status"] == "active"
 
 

@@ -1,6 +1,8 @@
 {
   "key": "kanboard-operator",
   "display_name": "Kanboard Operator",
+  "description": "Work with configured Kanboard projects, tasks, columns, and status updates through the Kanboard adapter.",
+  "category": "Channels and Integrations",
   "type": "executable",
   "source": "internal",
   "trust_status": "internal",
@@ -8,5 +10,6 @@
   "required_secrets": ["KANBOARD_PASSWORD"],
   "required_services": ["kanboard"],
   "permissions": ["kanboard_api"],
-  "entrypoints": ["kanboard.projects", "kanboard.tasks", "kanboard.columns"]
+  "entrypoints": ["kanboard.projects", "kanboard.tasks", "kanboard.columns"],
+  "default_enabled": false
 }

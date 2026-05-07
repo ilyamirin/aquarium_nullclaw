@@ -1,6 +1,8 @@
 {
   "key": "gitea-operator",
   "display_name": "Gitea Operator",
+  "description": "Work with configured Gitea repositories, issues, and PR-style workflows through the Gitea adapter.",
+  "category": "Channels and Integrations",
   "type": "executable",
   "source": "internal",
   "trust_status": "internal",
@@ -8,5 +10,6 @@
   "required_secrets": ["GITEA_TOKEN"],
   "required_services": ["gitea"],
   "permissions": ["gitea_api"],
-  "entrypoints": ["gitea.repositories", "gitea.issues", "gitea.pull_requests"]
+  "entrypoints": ["gitea.repositories", "gitea.issues", "gitea.pull_requests"],
+  "default_enabled": false
 }

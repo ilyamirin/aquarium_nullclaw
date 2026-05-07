@@ -1,6 +1,8 @@
 {
   "key": "release-smoke-tester",
   "display_name": "Release Smoke Tester",
+  "description": "Run post-create and post-update runtime smoke checks through the runtime gateway.",
+  "category": "Runtime Operations",
   "type": "executable",
   "source": "internal",
   "trust_status": "internal",
@@ -8,5 +10,6 @@
   "required_secrets": [],
   "required_services": ["runtime-gateway"],
   "permissions": ["runtime_read", "integration_test"],
-  "entrypoints": ["runtime.smoke_test", "runtime.config.view", "diagnostics.summary"]
+  "entrypoints": ["runtime.smoke_test", "runtime.config.view", "diagnostics.summary"],
+  "default_enabled": true
 }

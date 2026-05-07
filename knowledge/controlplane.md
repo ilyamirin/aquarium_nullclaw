@@ -76,7 +76,7 @@ Internal skill entries default to `skill_type=behavior`, `source=internal`, and 
 Curated internal operator skills are tracked source, not database-only seed data:
 
 - package source of truth: [skills](/Users/ilyagmirin/PycharmProjects/aquarium/skills)
-- bootstrap metadata source: [orchestrator/service_layer.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/service_layer.py)
+- bootstrap loader: [orchestrator/service_layer.py](/Users/ilyagmirin/PycharmProjects/aquarium/orchestrator/service_layer.py)
 - API surface: `GET /api/skills/catalog`
 
 Each internal package follows the AgentSkills-style layout:
@@ -88,7 +88,7 @@ skills/<skill-key>/
   README.md
 ```
 
-`SKILL.md` is the agent-facing operator instruction. `manifest.json` mirrors machine-readable metadata such as dependencies, permissions, and adapter entrypoints. The Django bootstrap path upserts the same metadata into `SkillCatalogEntry` through `bootstrap_reference_data()`, so repeated startup/import/migration flows do not create duplicates.
+`SKILL.md` is the agent-facing operator instruction. `manifest.json` is the machine-readable source of truth for display metadata, dependencies, permissions, default-enabled state, and adapter entrypoints. The Django bootstrap path reads `skills/*/manifest.json` and upserts that metadata into `SkillCatalogEntry` through `bootstrap_reference_data()`, so repeated startup/import/migration flows do not create duplicates and catalog/API behavior follows the tracked package manifests.
 
 The v1 internal catalog contains:
 

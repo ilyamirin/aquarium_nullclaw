@@ -1,6 +1,8 @@
 {
   "key": "runtime-operator",
   "display_name": "Runtime Operator",
+  "description": "Start, stop, restart, inspect, and smoke-test Aquarium runtimes through approved control-plane adapters.",
+  "category": "Runtime Operations",
   "type": "executable",
   "source": "internal",
   "trust_status": "internal",
@@ -8,5 +10,6 @@
   "required_secrets": [],
   "required_services": ["controlplane"],
   "permissions": ["runtime_read", "runtime_lifecycle"],
-  "entrypoints": ["runtime.status", "runtime.start", "runtime.stop", "runtime.restart", "runtime.smoke_test"]
+  "entrypoints": ["runtime.status", "runtime.start", "runtime.stop", "runtime.restart", "runtime.smoke_test"],
+  "default_enabled": true
 }
