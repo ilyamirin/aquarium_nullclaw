@@ -248,6 +248,8 @@ def internal_skill_manifest_entries() -> list[dict[str, Any]]:
     for manifest_path in sorted(INTERNAL_SKILLS_DIR.glob("*/manifest.json")):
         package_dir = manifest_path.parent
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            raise ValueError(f"{manifest_path} must contain a JSON object")
         missing_fields = REQUIRED_INTERNAL_SKILL_MANIFEST_FIELDS - set(manifest)
         if missing_fields:
             missing = ", ".join(sorted(missing_fields))

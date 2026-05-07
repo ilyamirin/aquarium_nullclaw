@@ -278,6 +278,18 @@ def test_internal_skill_manifest_entries_rejects_malformed_field_types(
         internal_skill_manifest_entries()
 
 
+def test_internal_skill_manifest_entries_rejects_non_object_manifest(monkeypatch, tmp_path) -> None:
+    skills_dir = tmp_path / "skills"
+    package_dir = skills_dir / "malformed"
+    package_dir.mkdir(parents=True)
+    (package_dir / "SKILL.md").write_text("# Malformed\n", encoding="utf-8")
+    (package_dir / "manifest.json").write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
+    monkeypatch.setattr("orchestrator.service_layer.INTERNAL_SKILLS_DIR", skills_dir)
+
+    with pytest.raises(ValueError, match="must contain a JSON object"):
+        internal_skill_manifest_entries()
+
+
 @pytest.mark.django_db
 def test_skill_catalog_payload_includes_operator_skill_dependency_and_trust_fields() -> None:
     manifests = {manifest["key"]: manifest for manifest in internal_skill_manifest_entries()}
