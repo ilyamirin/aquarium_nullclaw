@@ -1,0 +1,55 @@
+name: aquarium-perimeter
+
+services:
+  caddy:
+    image: caddy:2
+    ports:
+      - "127.0.0.1:${PERIMETER_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - authelia
+      - controlplane
+    networks:
+      - perimeter
+      - infisical
+      - monitoring
+
+  authelia:
+    image: authelia/authelia:latest
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./authelia/configuration.yml:/config/configuration.yml:ro
+      - ./authelia/users_database.yml:/config/users_database.yml:ro
+    networks:
+      - perimeter
+
+  controlplane:
+    build:
+      context: ..
+      dockerfile: docker/controlplane.Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CONTROLPLANE_PUBLIC_URL: http://app.aquarium.local
+      AUTHELIA_LOGIN_URL: http://auth.aquarium.local
+      AUTHELIA_LOGOUT_URL: http://auth.aquarium.local/logout
+      AUTHELIA_HEADER_USER: HTTP_REMOTE_USER
+    volumes:
+      - ../.aquarium:/app/.aquarium
+      - ../knowledge:/app/knowledge
+    networks:
+      - perimeter
+
+networks:
+  perimeter:
+    name: aquarium-perimeter
+  infisical:
+    external: true
+    name: aquarium-infisical
+  monitoring:
+    external: true
+    name: aquarium-monitoring

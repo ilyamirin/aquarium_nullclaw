@@ -571,6 +571,22 @@ def test_admin_home_is_read_only(operator_client: Client, runtime_fixture: Runti
     assert b"demo-runtime" in response.content
 
 
+def test_controlplane_public_base_url_defaults_to_aquarium_subdomain(settings) -> None:
+    from controlplane.core import settings as controlplane_settings
+
+    assert controlplane_settings.CONTROLPLANE_PUBLIC_URL == "http://app.aquarium.local"
+
+
+@pytest.mark.django_db
+def test_operator_home_prefers_perimeter_links(operator_client: Client) -> None:
+    response = operator_client.get("/admin/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "http://grafana.aquarium.local" in body
+    assert "http://secrets.aquarium.local" in body
+
+
 @pytest.mark.django_db
 def test_diagnostics_summary_get_is_read_only(operator_client: Client, runtime_fixture: Runtime, monkeypatch) -> None:
     monkeypatch.setattr(

@@ -7,7 +7,12 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[2]
 SECRET_KEY = os.environ.get("CONTROLPLANE_SECRET_KEY", "aquarium-controlplane-dev-secret-key")
 DEBUG = os.environ.get("CONTROLPLANE_DEBUG", "true").lower() == "true"
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+CONTROLPLANE_PUBLIC_URL = os.environ.get("CONTROLPLANE_PUBLIC_URL", "http://app.aquarium.local")
+GRAFANA_PUBLIC_URL = os.environ.get("GRAFANA_PUBLIC_URL", "http://grafana.aquarium.local")
+SECRETS_PUBLIC_URL = os.environ.get("SECRETS_PUBLIC_URL", "http://secrets.aquarium.local")
+
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "app.aquarium.local"]
+CSRF_TRUSTED_ORIGINS = [CONTROLPLANE_PUBLIC_URL]
 
 INSTALLED_APPS = [
     "unfold",

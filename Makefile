@@ -1,4 +1,4 @@
-.PHONY: hooks-install lint security-config security-fs security stack-config stack-health infisical-up infisical-health infisical-bootstrap litellm-up litellm-health litellm-status monitoring-bootstrap monitoring-up monitoring-health monitoring-logs monitoring-down probe-stack-config probe-stack-health live-up probe-up orchestrator-install orchestrator-init orchestrator-list orchestrator-status-live orchestrator-status-probe orchestrator-status-limit orchestrator-probe-check orchestrator-litellm-bootstrap controlplane-migrate controlplane-import-state controlplane-bootstrap-operator controlplane-run controlplane-start controlplane-stop controlplane-status controlplane-check demo-up demo-check demo-down
+.PHONY: hooks-install lint security-config security-fs security stack-config stack-health infisical-up infisical-health infisical-bootstrap litellm-up litellm-health litellm-status monitoring-bootstrap monitoring-up monitoring-health monitoring-logs monitoring-down perimeter-bootstrap perimeter-up perimeter-down perimeter-health probe-stack-config probe-stack-health live-up probe-up orchestrator-install orchestrator-init orchestrator-list orchestrator-status-live orchestrator-status-probe orchestrator-status-limit orchestrator-probe-check orchestrator-litellm-bootstrap controlplane-migrate controlplane-import-state controlplane-bootstrap-operator controlplane-run controlplane-start controlplane-stop controlplane-status controlplane-check demo-up demo-check demo-down
 
 PRE_COMMIT_HOME ?= $(CURDIR)/.cache/pre-commit
 export PRE_COMMIT_HOME
@@ -122,6 +122,19 @@ monitoring-logs:
 
 monitoring-down:
 	cd monitoring-stack && docker compose down
+
+perimeter-bootstrap:
+	./scripts/bootstrap-perimeter-stack.sh
+
+perimeter-up:
+	cd perimeter-stack && docker compose up -d
+
+perimeter-down:
+	cd perimeter-stack && docker compose down
+
+perimeter-health:
+	curl -fsS -H 'Host: app.aquarium.local' http://127.0.0.1:8080/auth/login/ >/dev/null
+	curl -fsS -H 'Host: grafana.aquarium.local' http://127.0.0.1:8080/ >/dev/null || true
 
 live-up:
 	cd nullclaw-stack && docker compose up -d gateway

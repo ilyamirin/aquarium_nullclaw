@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib import messages
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -52,16 +53,17 @@ def _selected_int(value: str | None) -> int | None:
         return None
 
 
-def _grafana_url() -> str:
-    return "http://127.0.0.1:13000"
-
-
 def _operator_context(*, title: str, active_page: str, page_description: str, **extra: Any) -> dict[str, Any]:
+    monitoring = _service().monitoring_surface_payload()
     context = {
         "title": title,
         "active_page": active_page,
         "page_description": page_description,
-        "grafana_url": _grafana_url(),
+        "controlplane_public_url": settings.CONTROLPLANE_PUBLIC_URL,
+        "grafana_url": settings.GRAFANA_PUBLIC_URL,
+        "secrets_url": settings.SECRETS_PUBLIC_URL,
+        "monitoring_direct_url": monitoring["url"],
+        "monitoring": monitoring,
     }
     context.update(extra)
     return context

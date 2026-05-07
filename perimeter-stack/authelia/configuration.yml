@@ -1,0 +1,50 @@
+theme: auto
+
+server:
+  address: tcp://0.0.0.0:9091
+
+log:
+  level: info
+
+totp:
+  issuer: aquarium.local
+
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+
+access_control:
+  default_policy: deny
+  rules:
+    - domain: auth.aquarium.local
+      policy: bypass
+    - domain:
+        - app.aquarium.local
+        - grafana.aquarium.local
+        - secrets.aquarium.local
+      policy: one_factor
+
+session:
+  secret: ${AUTHELIA_SESSION_SECRET}
+  cookies:
+    - domain: aquarium.local
+      authelia_url: http://auth.aquarium.local
+      default_redirection_url: http://app.aquarium.local
+
+regulation:
+  max_retries: 3
+  find_time: 2 minutes
+  ban_time: 5 minutes
+
+storage:
+  encryption_key: ${AUTHELIA_STORAGE_ENCRYPTION_KEY}
+  local:
+    path: /config/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt
+
+identity_validation:
+  reset_password:
+    jwt_secret: ${AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET}

@@ -13,6 +13,8 @@
 /litellm-stack/data/
 /monitoring-stack/.env
 /monitoring-stack/data/
+/perimeter-stack/.env
+/perimeter-stack/authelia/users_database.yml
 
 # Security and scan artifacts.
 /.pre-commit-cache/

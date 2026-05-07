@@ -1,0 +1,30 @@
+{
+	auto_https off
+	admin off
+}
+
+(authelia_gate) {
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+	}
+}
+
+app.aquarium.local {
+	import authelia_gate
+	reverse_proxy controlplane:8000
+}
+
+auth.aquarium.local {
+	reverse_proxy authelia:9091
+}
+
+grafana.aquarium.local {
+	import authelia_gate
+	reverse_proxy grafana:3000
+}
+
+secrets.aquarium.local {
+	import authelia_gate
+	reverse_proxy backend:8080
+}
