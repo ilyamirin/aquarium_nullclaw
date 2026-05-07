@@ -54,11 +54,24 @@ Core models:
 - `IntegrationConnection`
 - `ProviderConnection`
 - `ProviderModel`
+- `SkillCatalogEntry`
 - `RuntimeSecretRef`
 - `RuntimeActionLog`
 - `RuntimeDiagnosticSnapshot`
 - `RuntimeChatSession`
 - `RuntimeChatMessage`
+
+`SkillCatalogEntry` is the schema foundation for the future agent operator skill catalog. It keeps the original local-catalog fields (`key`, `display_name`, `description`, `category`, `source_path`, `compatibility_rules`, `default_enabled`, `status`) and adds the operator-skills trust/dependency contract:
+
+- `skill_type`: `behavior`, `hybrid`, or `executable`
+- `source`: `internal`, `nullclaw-registry`, or `github`
+- `trust_status`: `internal`, `reviewed`, `quarantine`, or `blocked`
+- `source_url`: external review/source pointer, blank for internal skills
+- `required_integrations`, `required_secrets`, `required_services`: dependency declarations stored as JSON arrays
+- `permissions`: approved Aquarium capability permissions, not shell access
+- `entrypoints`: approved Aquarium adapter entrypoint names for executable or hybrid skills
+
+Internal skill entries default to `skill_type=behavior`, `source=internal`, and `trust_status=internal`. External import code must explicitly set external sources to `trust_status=quarantine` before any future review flow enables them.
 
 Current runtime profiles:
 

@@ -16,6 +16,7 @@ from controlplane.domain.models import (
     RuntimeDiagnosticSnapshot,
     RuntimeProfile,
     RuntimeSecretRef,
+    SkillCatalogEntry,
     Tenant,
 )
 
@@ -41,6 +42,13 @@ class TenantAdmin(HiddenFromMenuAdmin):
 class PlanAdmin(HiddenFromMenuAdmin):
     list_display = ["slug", "display_name", "status", "updated_at"]
     search_fields = ["slug", "display_name"]
+
+
+@admin.register(SkillCatalogEntry)
+class SkillCatalogEntryAdmin(HiddenFromMenuAdmin):
+    list_display = ["key", "display_name", "category", "skill_type", "source", "trust_status", "status", "default_enabled"]
+    list_filter = ["skill_type", "source", "trust_status", "status", "default_enabled", "category"]
+    search_fields = ["key", "display_name", "description", "source_path", "source_url"]
 
 
 @admin.register(RuntimeProfile)

@@ -98,6 +98,25 @@ class ChatRole(models.TextChoices):
     SYSTEM = "system", "System"
 
 
+class SkillType(models.TextChoices):
+    BEHAVIOR = "behavior", "Behavior"
+    HYBRID = "hybrid", "Hybrid"
+    EXECUTABLE = "executable", "Executable"
+
+
+class SkillSource(models.TextChoices):
+    INTERNAL = "internal", "Internal"
+    NULLCLAW_REGISTRY = "nullclaw-registry", "NullClaw Registry"
+    GITHUB = "github", "GitHub"
+
+
+class SkillTrustStatus(models.TextChoices):
+    INTERNAL = "internal", "Internal"
+    REVIEWED = "reviewed", "Reviewed"
+    QUARANTINE = "quarantine", "Quarantine"
+    BLOCKED = "blocked", "Blocked"
+
+
 class Tenant(TimestampedModel):
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=255)
@@ -118,6 +137,32 @@ class Plan(TimestampedModel):
 
     class Meta:
         ordering = ["slug"]
+
+    def __str__(self) -> str:
+        return self.display_name
+
+
+class SkillCatalogEntry(TimestampedModel):
+    key = models.SlugField(unique=True)
+    display_name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=128, blank=True)
+    source_path = models.CharField(max_length=1024, blank=True)
+    compatibility_rules = models.JSONField(default=dict, blank=True)
+    default_enabled = models.BooleanField(default=False)
+    status = models.CharField(max_length=32, choices=PlanStatus.choices, default=PlanStatus.ACTIVE)
+    skill_type = models.CharField(max_length=32, choices=SkillType.choices, default=SkillType.BEHAVIOR)
+    source = models.CharField(max_length=64, choices=SkillSource.choices, default=SkillSource.INTERNAL)
+    trust_status = models.CharField(max_length=32, choices=SkillTrustStatus.choices, default=SkillTrustStatus.INTERNAL)
+    source_url = models.URLField(blank=True)
+    required_integrations = models.JSONField(default=list, blank=True)
+    required_secrets = models.JSONField(default=list, blank=True)
+    required_services = models.JSONField(default=list, blank=True)
+    permissions = models.JSONField(default=list, blank=True)
+    entrypoints = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["category", "display_name", "key"]
 
     def __str__(self) -> str:
         return self.display_name

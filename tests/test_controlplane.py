@@ -24,6 +24,10 @@ from controlplane.domain.models import (
     RuntimeProfileSlug,
     RuntimeSecretRef,
     SecretKind,
+    SkillCatalogEntry,
+    SkillSource,
+    SkillTrustStatus,
+    SkillType,
     Tenant,
 )
 from orchestrator.litellm import DEFAULT_MODEL_ALIAS, DEFAULT_PROVIDER_MODEL, render_stack_config
@@ -121,6 +125,32 @@ def test_runtime_config_view_masks_sensitive_values(runtime_fixture: Runtime, mo
     assert payload["config"]["channels"]["telegram"]["accounts"]["main"]["bot_token"] == "***"
     assert payload["config"]["models"]["providers"]["custom"]["api_key"] == "***"
     assert payload["config"]["security"]["slack_signing_secret"] == "***"
+
+
+@pytest.mark.django_db
+def test_skill_catalog_entry_defaults_to_internal_behavior_skill() -> None:
+    skill = SkillCatalogEntry.objects.create(
+        key="support-triage",
+        display_name="Support Triage",
+        description="Classify operator requests.",
+        category="Operator Workflow",
+        source_path="skills/support-triage/SKILL.md",
+        required_integrations=["telegram"],
+        required_secrets=["TELEGRAM_BOT_TOKEN"],
+        required_services=["controlplane"],
+        permissions=["runtime_read"],
+        entrypoints=["runtime.status"],
+    )
+
+    assert skill.skill_type == SkillType.BEHAVIOR
+    assert skill.source == SkillSource.INTERNAL
+    assert skill.trust_status == SkillTrustStatus.INTERNAL
+    assert skill.source_url == ""
+    assert skill.required_integrations == ["telegram"]
+    assert skill.required_secrets == ["TELEGRAM_BOT_TOKEN"]
+    assert skill.required_services == ["controlplane"]
+    assert skill.permissions == ["runtime_read"]
+    assert skill.entrypoints == ["runtime.status"]
 
 
 @pytest.mark.django_db
