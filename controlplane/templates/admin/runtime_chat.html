@@ -5,8 +5,16 @@
 {% endblock %}
 
 {% block operator_body %}
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Runtime Channel</p>
+    <h1>Operator Chat</h1>
+    <p class="op-subtitle">Send controlled internal prompts to {{ runtime.runtime_id }} for setup checks and debugging.</p>
+  </div>
+</section>
+
 <section class="op-split">
-  <article class="op-card">
+  <article class="op-panel">
     <h2>Sessions</h2>
     {% if sessions %}
     <ul class="op-list">
@@ -32,7 +40,7 @@
     </form>
   </article>
 
-  <article class="op-card">
+  <article class="op-panel op-chat-console">
     {% if active_session %}
     <h2>{{ active_session.title|default:active_session.pk }}</h2>
     {% if messages %}
@@ -85,7 +93,7 @@
   </article>
 </section>
 
-<section class="op-card">
+<section class="op-panel">
   <h2>Recent Trace Snippets</h2>
   {% if trace_links %}
   <ul class="op-list-compact">

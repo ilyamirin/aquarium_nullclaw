@@ -1,8 +1,21 @@
 {% extends "admin/operator_base.html" %}
 
 {% block operator_body %}
-<section class="op-card">
-  <h2>Agent Studio</h2>
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Agent Studio</p>
+    <h1>{{ detail.agent.name }}</h1>
+    <p class="op-subtitle">{{ detail.agent.slug }} · {{ detail.agent.status }} · {{ detail.agent.primary_channel }}</p>
+  </div>
+  <div class="op-hero-actions">
+    <a href="/admin/" class="op-button secondary">Command Deck</a>
+    {% if detail.deployment.runtime_ref %}
+    <a href="/admin/runtimes/{{ detail.deployment.runtime_ref }}/" class="op-button secondary">Runtime</a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="op-panel">
   <div class="op-subnav">
     {% for item in agent_subnav %}
     <a href="{{ item.href }}" class="{% if item.active %}is-active{% endif %}">{{ item.label }}</a>
@@ -10,21 +23,31 @@
   </div>
 </section>
 
-<section class="op-grid cols-2">
-  <article class="op-card">
+<section class="op-grid cols-3">
+  <article class="op-panel">
+    <p class="op-kicker">Identity</p>
     <h2>Overview</h2>
     <dl class="op-definition-list">
       <div><dt>Name</dt><dd>{{ detail.agent.name }}</dd></div>
       <div><dt>Slug</dt><dd>{{ detail.agent.slug }}</dd></div>
-      <div><dt>Status</dt><dd>{{ detail.agent.status }}</dd></div>
+      <div><dt>Status</dt><dd><span class="op-status-pill {{ detail.agent.status }}">{{ detail.agent.status }}</span></dd></div>
       <div><dt>Primary Channel</dt><dd>{{ detail.agent.primary_channel }}</dd></div>
-      <div><dt>Model</dt><dd>{{ detail.agent.model }}</dd></div>
-      <div><dt>Gateway Port</dt><dd>{{ detail.build_spec.gateway_port }}</dd></div>
     </dl>
   </article>
-  <article class="op-card">
+  <article class="op-panel">
+    <p class="op-kicker">Model</p>
+    <h2>Runtime Shape</h2>
+    <dl class="op-definition-list">
+      <div><dt>Model</dt><dd>{{ detail.agent.model }}</dd></div>
+      <div><dt>Gateway Port</dt><dd>{{ detail.build_spec.gateway_port }}</dd></div>
+      <div><dt>Budget</dt><dd>{{ detail.build_spec.litellm_budget_usd|default:"-" }}</dd></div>
+      <div><dt>RPM / TPM</dt><dd>{{ detail.build_spec.litellm_rpm_limit|default:"-" }} / {{ detail.build_spec.litellm_tpm_limit|default:"-" }}</dd></div>
+    </dl>
+  </article>
+  <article class="op-command-card">
+    <p class="op-kicker">Controls</p>
     <h2>Launch Controls</h2>
-    <p class="op-note">Draft creation does not launch. Use explicit controls to materialize a deployment.</p>
+    <p class="op-note">Draft creation does not launch. Materialize or stop deployment explicitly.</p>
     <div class="op-actions">
       <form method="post">
         {% csrf_token %}
@@ -37,16 +60,21 @@
         <button class="op-button danger" type="submit">Stop</button>
       </form>
       {% if detail.deployment.runtime_ref %}
-      <a class="op-button secondary" href="/admin/runtimes/{{ detail.deployment.runtime_ref }}/diagnostics/">Deployment Diagnostics</a>
-      <a class="op-button secondary" href="/admin/runtimes/{{ detail.deployment.runtime_ref }}/chat/">Internal Test Channel</a>
+      <a class="op-button secondary" href="/admin/runtimes/{{ detail.deployment.runtime_ref }}/diagnostics/">Diagnostics</a>
+      <a class="op-button secondary" href="/admin/runtimes/{{ detail.deployment.runtime_ref }}/chat/">Test Chat</a>
       {% endif %}
     </div>
   </article>
 </section>
 
 <section class="op-grid cols-2">
-  <article class="op-card">
-    <h2>Build Spec</h2>
+  <article class="op-panel">
+    <div class="op-section-heading">
+      <div>
+        <p class="op-kicker">Build Spec</p>
+        <h2>Agent Brain</h2>
+      </div>
+    </div>
     <form method="post" class="op-form">
       {% csrf_token %}
       <input type="hidden" name="action" value="save_build_spec">
@@ -81,14 +109,16 @@
       </div>
     </form>
   </article>
-  <article class="op-card">
-    <h2>Channel</h2>
+  <article class="op-panel">
+    <p class="op-kicker">Channels</p>
+    <h2>Channel Config</h2>
     <pre class="op-pre">{{ detail.build_spec.channel_config|pprint }}</pre>
   </article>
 </section>
 
 <section class="op-grid cols-2">
-  <article class="op-card">
+  <article class="op-panel">
+    <p class="op-kicker">Capabilities</p>
     <h2>Ordered Skills</h2>
     {% if detail.build_spec.skills %}
     <ol class="op-ordered-list">
@@ -100,35 +130,39 @@
     <div class="op-empty">No skills attached yet.</div>
     {% endif %}
   </article>
-  <article class="op-card">
+  <article class="op-panel">
+    <p class="op-kicker">Vault</p>
     <h2>Secret Bindings</h2>
     {% if detail.build_spec.secrets %}
-    <table class="op-table">
-      <thead>
-        <tr><th>Role</th><th>Secret</th><th>Kind</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        {% for secret in detail.build_spec.secrets %}
-        <tr>
-          <td>{{ secret.logical_role }}</td>
-          <td>{{ secret.name }}</td>
-          <td>{{ secret.secret_kind }}</td>
-          <td>{{ secret.masked_label }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="op-table-wrap">
+      <table class="op-table op-data-table">
+        <thead>
+          <tr><th>Role</th><th>Secret</th><th>Kind</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for secret in detail.build_spec.secrets %}
+          <tr>
+            <td>{{ secret.logical_role }}</td>
+            <td>{{ secret.name }}</td>
+            <td>{{ secret.secret_kind }}</td>
+            <td>{{ secret.masked_label }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
     <div class="op-empty">No workspace secret bindings yet.</div>
     {% endif %}
   </article>
 </section>
 
-<section class="op-card">
-  <h2>Deployment</h2>
+<section class="op-panel">
+  <p class="op-kicker">Deployment</p>
+  <h2>Deployment State</h2>
   {% if detail.deployment %}
   <dl class="op-definition-list">
-    <div><dt>Status</dt><dd>{{ detail.deployment.status }}</dd></div>
+    <div><dt>Status</dt><dd><span class="op-status-pill {{ detail.deployment.status }}">{{ detail.deployment.status }}</span></dd></div>
     <div><dt>Runtime Ref</dt><dd>{{ detail.deployment.runtime_ref|default:"-" }}</dd></div>
     <div><dt>Launched</dt><dd>{{ detail.deployment.launched_at|default:"-" }}</dd></div>
     <div><dt>Stopped</dt><dd>{{ detail.deployment.stopped_at|default:"-" }}</dd></div>

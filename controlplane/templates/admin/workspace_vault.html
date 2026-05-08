@@ -1,35 +1,53 @@
 {% extends "admin/operator_base.html" %}
 
 {% block operator_body %}
-<section class="op-card">
-  <h2>Workspace Vault</h2>
-  <p class="op-note">Secret values remain write-only. This view shows metadata and binding targets only.</p>
-  {% if secret_error %}
-  <div class="op-banner warning">
-    Workspace secret metadata is temporarily unavailable: {{ secret_error }}. Re-authenticate the operator token or restore the secret backend before rotating or rebinding secrets.
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Workspace Vault</p>
+    <h1>Workspace Vault</h1>
+    <p class="op-subtitle">Secret values remain write-only. This view shows metadata, usage scope, and binding targets only.</p>
   </div>
-  {% endif %}
+  <div class="op-hero-actions">
+    <a href="/admin/secrets/" class="op-button secondary">Runtime Secrets</a>
+  </div>
+</section>
+
+{% if secret_error %}
+<section class="op-banner warning">
+  Workspace secret metadata is temporarily unavailable: {{ secret_error }}. Re-authenticate the operator token or restore the secret backend before rotating or rebinding secrets.
+</section>
+{% endif %}
+
+<section class="op-panel">
+  <div class="op-section-heading">
+    <div>
+      <p class="op-kicker">Bindings</p>
+      <h2>Workspace Secrets</h2>
+    </div>
+  </div>
   {% if secrets %}
-  <table class="op-table">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Kind</th>
-        <th>Scope</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for secret in secrets %}
-      <tr>
-        <td>{{ secret.name }}</td>
-        <td>{{ secret.secret_kind }}</td>
-        <td>{{ secret.usage_scope }}</td>
-        <td>{{ secret.masked_label|default:"Configured" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="op-table-wrap">
+    <table class="op-table op-data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Kind</th>
+          <th>Scope</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for secret in secrets %}
+        <tr>
+          <td>{{ secret.name }}</td>
+          <td>{{ secret.secret_kind }}</td>
+          <td>{{ secret.usage_scope }}</td>
+          <td><span class="op-status-pill configured">{{ secret.masked_label|default:"Configured" }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
   <div class="op-empty">No workspace secrets yet. Create them through the agent-first API or future inline forms.</div>
   {% endif %}
