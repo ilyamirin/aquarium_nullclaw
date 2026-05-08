@@ -5,11 +5,21 @@
 {% endblock %}
 
 {% block operator_body %}
+<div class="op-config-deck">
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Configuration</p>
+    <h1>Integrations</h1>
+    <p class="op-subtitle">Bind external operator channels and tools to tenants, runtimes, and secret references.</p>
+  </div>
+</section>
+
 <section class="op-grid">
-  <article class="op-card">
+  <article class="op-panel">
     <h2>Integration Connections</h2>
     {% if integrations %}
-    <table class="op-table">
+    <div class="op-table-wrap">
+    <table class="op-table op-data-table">
       <thead>
         <tr>
           <th>Name</th>
@@ -41,12 +51,13 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div class="op-empty">No integrations configured yet.</div>
     {% endif %}
   </article>
 
-  <article class="op-card">
+  <article class="op-panel">
     <h2>{% if selected_connection %}Edit Integration{% else %}Create Integration{% endif %}</h2>
     {% if integrations %}
     <form method="get" class="op-form">
@@ -117,4 +128,5 @@
     </form>
   </article>
 </section>
+</div>
 {% endblock %}

@@ -903,6 +903,24 @@ def test_runtime_detail_uses_infrastructure_cockpit(operator_client: Client, run
     assert "LiteLLM" in body
 
 
+def test_configuration_pages_use_config_deck(client, admin_user):
+    client.force_login(admin_user)
+
+    urls = [
+        "/admin/providers/",
+        "/admin/models/",
+        "/admin/integrations/",
+        "/admin/secrets/",
+    ]
+
+    for url in urls:
+        response = client.get(url)
+        assert response.status_code == 200, url
+        body = response.content.decode()
+        assert "op-config-deck" in body, url
+        assert "op-panel" in body, url
+
+
 def test_controlplane_public_base_url_defaults_to_aquarium_subdomain(settings) -> None:
     from controlplane.core import settings as controlplane_settings
 

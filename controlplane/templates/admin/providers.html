@@ -7,11 +7,21 @@
 {% endblock %}
 
 {% block operator_body %}
+<div class="op-config-deck">
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Configuration</p>
+    <h1>Provider Connections</h1>
+    <p class="op-subtitle">Manage provider routes and write-only API credentials used by the internal LiteLLM boundary.</p>
+  </div>
+</section>
+
 <section class="op-grid">
-  <article class="op-card">
+  <article class="op-panel">
     <h2>Provider Connections</h2>
     {% if providers %}
-    <table class="op-table">
+    <div class="op-table-wrap">
+    <table class="op-table op-data-table">
       <thead>
         <tr>
           <th>Name</th>
@@ -43,12 +53,13 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div class="op-empty">No provider connections yet. Build the baseline or create the first provider manually.</div>
     {% endif %}
   </article>
 
-  <article class="op-card">
+  <article class="op-panel">
     <h2>{% if selected_provider %}Edit Provider{% else %}Create Provider{% endif %}</h2>
     {% if providers %}
     <form method="get" class="op-form">
@@ -123,4 +134,5 @@
     </form>
   </article>
 </section>
+</div>
 {% endblock %}

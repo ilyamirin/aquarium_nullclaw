@@ -7,11 +7,21 @@
 {% endblock %}
 
 {% block operator_body %}
+<div class="op-config-deck">
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Configuration</p>
+    <h1>Model Catalog</h1>
+    <p class="op-subtitle">Curate model aliases, provider model names, and platform defaults exposed to runtime creation.</p>
+  </div>
+</section>
+
 <section class="op-grid">
-  <article class="op-card">
+  <article class="op-panel">
     <h2>Model Catalog</h2>
     {% if models %}
-    <table class="op-table">
+    <div class="op-table-wrap">
+    <table class="op-table op-data-table">
       <thead>
         <tr>
           <th>Alias</th>
@@ -58,12 +68,13 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div class="op-empty">No provider models yet. Rebuild the baseline or add a custom alias.</div>
     {% endif %}
   </article>
 
-  <article class="op-card">
+  <article class="op-panel">
     <h2>{% if selected_model %}Edit Model Alias{% else %}Create Model Alias{% endif %}</h2>
     {% if models %}
     <form method="get" class="op-form">
@@ -125,4 +136,5 @@
     </form>
   </article>
 </section>
+</div>
 {% endblock %}
