@@ -2,48 +2,55 @@
 
 {% block operator_header_actions %}
 {% if monitoring.available %}
-<a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Open Grafana</a>
+<a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Grafana</a>
 {% else %}
 <span class="op-button secondary is-disabled" aria-disabled="true" title="{{ monitoring.reason }}">Grafana offline</span>
 {% endif %}
 {% endblock %}
 
 {% block operator_body %}
-<section class="op-stat-grid">
-  <article class="op-stat">
-    <div class="op-stat-label">Agents</div>
-    <div class="op-stat-value">{{ agent_count }}</div>
-  </article>
-  <article class="op-stat">
-    <div class="op-stat-label">Runtimes</div>
-    <div class="op-stat-value">{{ runtime_count }}</div>
-  </article>
-  <article class="op-stat">
-    <div class="op-stat-label">Unhealthy</div>
-    <div class="op-stat-value">{{ unhealthy_count }}</div>
-  </article>
-  <article class="op-stat">
-    <div class="op-stat-label">Recent Actions</div>
-    <div class="op-stat-value">{{ recent_actions|length }}</div>
-  </article>
-  <article class="op-stat">
-    <div class="op-stat-label">Monitoring</div>
-    <div class="op-stat-value op-stat-value-small">{% if monitoring.healthy %}Live{% else %}Offline{% endif %}</div>
-  </article>
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Aquarium Operator Console</p>
+    <h1>Command Deck</h1>
+    <p class="op-subtitle">Build, launch, and supervise NullClaw agents from one dark control surface.</p>
+  </div>
+  <div class="op-hero-actions">
+    <a href="#create-agent" class="op-button primary">Create Agent</a>
+    <a href="/admin/vault/" class="op-button secondary">Open Vault</a>
+  </div>
+</section>
+
+<section class="op-stat-grid op-command-strip">
+  <article class="op-metric"><span>Agents</span><strong>{{ agent_count }}</strong></article>
+  <article class="op-metric"><span>Runtimes</span><strong>{{ runtime_count }}</strong></article>
+  <article class="op-metric"><span>Needs Attention</span><strong>{{ unhealthy_count }}</strong></article>
+  <article class="op-metric"><span>Recent Actions</span><strong>{{ recent_actions|length }}</strong></article>
+  <article class="op-metric"><span>Monitoring</span><strong>{% if monitoring.healthy %}Live{% else %}Offline{% endif %}</strong></article>
 </section>
 
 <section class="op-grid cols-3">
-  <article class="op-card">
-    <h2>Agent Home</h2>
-    <p class="op-note">Create draft agents, open Agent Studio, and keep runtime execution as a secondary deployment detail.</p>
+  <article class="op-command-card">
+    <div class="op-section-heading">
+      <div>
+        <p class="op-kicker">Primary Flow</p>
+        <h2>Agent Factory</h2>
+      </div>
+    </div>
+    <p class="op-note">Create draft agents, open Agent Studio, then launch under controlled runtime infrastructure.</p>
     <div class="op-actions">
       <a href="#create-agent" class="op-button primary">Create Agent</a>
-      <a href="/admin/vault/" class="op-button secondary">Workspace Vault</a>
+      <a href="/admin/agents/new/" class="op-button secondary">Full Builder</a>
     </div>
   </article>
-  <article class="op-card">
-    <h2>Configuration</h2>
-    <p class="op-note">Manage provider connections, model aliases, integrations and secret references from the same operator surface.</p>
+  <article class="op-panel">
+    <div class="op-section-heading">
+      <div>
+        <p class="op-kicker">Config</p>
+        <h2>Control Surface</h2>
+      </div>
+    </div>
+    <p class="op-note">Provider routes, model aliases, integrations, and secret references stay one click away.</p>
     <div class="op-actions">
       <a href="/admin/providers/" class="op-button secondary">Providers</a>
       <a href="/admin/models/" class="op-button secondary">Models</a>
@@ -52,12 +59,17 @@
       <a href="{{ secrets_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Infisical</a>
     </div>
   </article>
-  <article class="op-card">
-    <h2>Observability</h2>
-    <p class="op-note">Control plane summaries stay here. Deep traces, logs and metrics stay in the monitoring stack behind the perimeter.</p>
+  <article class="op-panel">
+    <div class="op-section-heading">
+      <div>
+        <p class="op-kicker">Signals</p>
+        <h2>Observability</h2>
+      </div>
+    </div>
+    <p class="op-note">Use cached state here. Jump to Grafana for logs, traces, and metrics when live investigation is needed.</p>
     <div class="op-actions">
       {% if monitoring.available %}
-      <a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Grafana</a>
+      <a href="{{ grafana_url }}" class="op-button secondary" target="_blank" rel="noreferrer">Open Grafana</a>
       {% else %}
       <span class="op-button secondary is-disabled" aria-disabled="true" title="{{ monitoring.reason }}">Grafana offline</span>
       {% endif %}
@@ -65,135 +77,143 @@
   </article>
 </section>
 
-<section class="op-card">
-  <div class="op-anchor" id="create-agent"></div>
-  <h2>Create Agent</h2>
-  <p class="op-note">Draft creation now stays on the same page. Use the separate route only as a fallback surface.</p>
+<section class="op-command-card op-create-agent-panel" id="create-agent">
+  <div class="op-section-heading">
+    <div>
+      <p class="op-kicker">Primary Flow</p>
+      <h2>Create Agent</h2>
+      <p class="op-note">Create a draft agent first. Runtime launch stays explicit inside Agent Studio.</p>
+    </div>
+  </div>
   {% include "admin/_agent_builder_form.html" with agent_form_action="create_agent_inline" agent_submit_label="Create Draft Agent" %}
 </section>
 
-<section class="op-card">
-  <h2>Agent Inventory</h2>
+<section class="op-panel">
+  <div class="op-section-heading">
+    <div>
+      <p class="op-kicker">Agents</p>
+      <h2>Agent Fleet</h2>
+    </div>
+  </div>
   {% if agent_details %}
-  <table class="op-table">
-    <thead>
-      <tr>
-        <th>Agent</th>
-        <th>Status</th>
-        <th>Primary Channel</th>
-        <th>Model</th>
-        <th>Last Launch</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for agent in agent_details %}
-      <tr>
-        <td>
-          <strong><a href="/admin/agents/{{ agent.slug }}/">{{ agent.name }}</a></strong><br>
-          <span class="op-note">{{ agent.slug }}</span>
-        </td>
-        <td>
-          <span class="op-badge {% if agent.status == 'running' %}ok{% elif agent.status == 'draft' or agent.status == 'ready' %}neutral{% elif agent.status == 'stopped' %}warn{% else %}error{% endif %}">
-            {{ agent.status }}
-          </span>
-        </td>
-        <td>{{ agent.primary_channel }}</td>
-        <td>{{ agent.model|default:"-" }}</td>
-        <td>{{ agent.last_launch|default:"-" }}</td>
-        <td>
-          <div class="op-inline-actions">
-            <a href="/admin/agents/{{ agent.slug }}/" class="op-button secondary">Studio</a>
-            {% if agent.current_deployment %}
-            <a href="/admin/runtimes/{{ agent.slug }}/diagnostics/" class="op-button secondary">Diagnostics</a>
-            {% endif %}
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="op-agent-grid">
+    {% for agent in agent_details %}
+    <article class="op-agent-card">
+      <div class="op-card-topline">
+        <strong><a href="/admin/agents/{{ agent.slug }}/">{{ agent.name }}</a></strong>
+        <span class="op-status-pill {{ agent.status }}">{{ agent.status }}</span>
+      </div>
+      <p class="op-note">{{ agent.slug }}</p>
+      <dl class="op-mini-meta">
+        <div><dt>Channel</dt><dd>{{ agent.primary_channel }}</dd></div>
+        <div><dt>Model</dt><dd>{{ agent.model|default:"-" }}</dd></div>
+        <div><dt>Last Launch</dt><dd>{{ agent.last_launch|default:"-" }}</dd></div>
+      </dl>
+      <div class="op-inline-actions op-stack-top">
+        <a href="/admin/agents/{{ agent.slug }}/" class="op-button secondary">Studio</a>
+        {% if agent.current_deployment %}
+        <a href="/admin/runtimes/{{ agent.slug }}/diagnostics/" class="op-button secondary">Diagnostics</a>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
   {% else %}
-  <div class="op-empty">No agents yet. Start with Create Agent and launch explicitly from Agent Studio.</div>
+  <div class="op-empty">No agents yet. Create a draft agent to start.</div>
   {% endif %}
 </section>
 
-<section class="op-card">
-  <h2>Runtime Inventory</h2>
+<section class="op-panel">
+  <div class="op-section-heading">
+    <div>
+      <p class="op-kicker">Infrastructure</p>
+      <h2>Runtime Infrastructure</h2>
+    </div>
+    <a href="/admin/runtime-wizard/" class="op-button secondary">Runtime Wizard</a>
+  </div>
   {% if runtime_details %}
-  <table class="op-table">
-    <thead>
-      <tr>
-        <th>Runtime</th>
-        <th>Role</th>
-        <th>Health</th>
-        <th>Lifecycle</th>
-        <th>Model</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for detail in runtime_details %}
-      <tr>
-        <td>
-          <strong><a href="/admin/runtimes/{{ detail.overview.runtime_id }}/">{{ detail.overview.runtime_id }}</a></strong><br>
-          <span class="op-note">{{ detail.overview.tenant|default:"no-tenant" }} / {{ detail.overview.plan|default:"no-plan" }}</span>
-        </td>
-        <td>{{ detail.overview.runtime_profile }}</td>
-        <td>
-          <span class="op-badge {% if detail.overview.health_status == 'healthy' %}ok{% elif detail.overview.health_status == 'degraded' %}warn{% elif detail.overview.health_status == 'unknown' %}neutral{% else %}error{% endif %}">
-            {{ detail.overview.health_status }}
-          </span>
-        </td>
-        <td>
-          <span class="op-badge {% if detail.overview.lifecycle_status == 'running' %}ok{% elif detail.overview.lifecycle_status == 'created' or detail.overview.lifecycle_status == 'unknown' %}neutral{% elif detail.overview.lifecycle_status == 'stopped' %}warn{% else %}error{% endif %}">
-            {{ detail.overview.lifecycle_status }}
-          </span>
-        </td>
-        <td>{{ detail.overview.model }}</td>
-        <td>
-          <div class="op-inline-actions">
-            <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/" class="op-button secondary">Open</a>
-            <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/diagnostics/" class="op-button secondary">Diagnostics</a>
-            <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/chat/" class="op-button secondary">Chat</a>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="op-table-wrap">
+    <table class="op-table op-data-table">
+      <thead>
+        <tr>
+          <th>Runtime</th>
+          <th>Role</th>
+          <th>Health</th>
+          <th>Lifecycle</th>
+          <th>Model</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for detail in runtime_details %}
+        <tr>
+          <td>
+            <strong><a href="/admin/runtimes/{{ detail.overview.runtime_id }}/">{{ detail.overview.runtime_id }}</a></strong><br>
+            <span class="op-note">{{ detail.overview.tenant|default:"no-tenant" }} / {{ detail.overview.plan|default:"no-plan" }}</span>
+          </td>
+          <td>{{ detail.overview.runtime_profile }}</td>
+          <td>
+            <span class="op-status-pill {{ detail.overview.health_status }}">
+              {{ detail.overview.health_status }}
+            </span>
+          </td>
+          <td>
+            <span class="op-status-pill {{ detail.overview.lifecycle_status }}">
+              {{ detail.overview.lifecycle_status }}
+            </span>
+          </td>
+          <td>{{ detail.overview.model }}</td>
+          <td>
+            <div class="op-inline-actions">
+              <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/" class="op-button secondary">Open</a>
+              <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/diagnostics/" class="op-button secondary">Diagnostics</a>
+              <a href="/admin/runtimes/{{ detail.overview.runtime_id }}/chat/" class="op-button secondary">Chat</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
   <div class="op-empty">No runtimes yet. Start with the Runtime Wizard.</div>
   {% endif %}
 </section>
 
-<section class="op-card">
-  <h2>Recent Actions</h2>
+<section class="op-panel">
+  <div class="op-section-heading">
+    <div>
+      <p class="op-kicker">Event Feed</p>
+      <h2>Recent Actions</h2>
+    </div>
+  </div>
   {% if recent_actions %}
-  <table class="op-table">
-    <thead>
-      <tr>
-        <th>When</th>
-        <th>Action</th>
-        <th>Runtime</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for action in recent_actions %}
-      <tr>
-        <td>{{ action.created_at }}</td>
-        <td>{{ action.action }}</td>
-        <td>{% if action.runtime %}<a href="/admin/runtimes/{{ action.runtime.runtime_id }}/">{{ action.runtime.runtime_id }}</a>{% else %}global{% endif %}</td>
-        <td>
-          <span class="op-badge {% if action.status == 'verified' %}ok{% elif action.status == 'error' %}error{% elif action.status == 'configured' %}neutral{% else %}warn{% endif %}">
-            {{ action.status }}
-          </span>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="op-table-wrap">
+    <table class="op-table op-data-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Action</th>
+          <th>Runtime</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for action in recent_actions %}
+        <tr>
+          <td>{{ action.created_at }}</td>
+          <td>{{ action.action }}</td>
+          <td>{% if action.runtime %}<a href="/admin/runtimes/{{ action.runtime.runtime_id }}/">{{ action.runtime.runtime_id }}</a>{% else %}global{% endif %}</td>
+          <td>
+            <span class="op-status-pill {{ action.status }}">
+              {{ action.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
   <div class="op-empty">No operator actions logged yet.</div>
   {% endif %}
