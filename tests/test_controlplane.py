@@ -827,6 +827,60 @@ def test_admin_home_is_read_only(operator_client: Client, runtime_fixture: Runti
     assert b"demo-runtime" in response.content
     assert b"Grafana offline" in response.content
     assert b">Offline<" in response.content
+
+
+def test_operator_home_uses_deep_ocean_command_deck(client, admin_user):
+    client.force_login(admin_user)
+
+    response = client.get("/admin/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "op-deep-ocean" in body
+    assert "Command Deck" in body
+    assert "Agent Fleet" in body
+    assert "Runtime Infrastructure" in body
+    assert "Create Agent" in body
+
+
+def test_agent_builder_uses_composer_sections_and_choice_cards(client, admin_user):
+    client.force_login(admin_user)
+
+    response = client.get("/admin/agents/new/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "op-agent-composer" in body
+    assert "Identity" in body
+    assert "Personality" in body
+    assert "Model" in body
+    assert "Channels" in body
+    assert "Skills" in body
+    assert "Limits" in body
+    assert "Secrets" in body
+    assert "op-choice-card" in body
+
+
+def test_runtime_and_config_pages_keep_dark_operator_shell(client, admin_user):
+    client.force_login(admin_user)
+
+    urls = [
+        "/admin/runtime-wizard/",
+        "/admin/providers/",
+        "/admin/models/",
+        "/admin/integrations/",
+        "/admin/secrets/",
+        "/admin/vault/",
+    ]
+
+    for url in urls:
+        response = client.get(url)
+        assert response.status_code == 200, url
+        body = response.content.decode()
+        assert "op-deep-ocean" in body, url
+        assert "op-panel" in body, url
+
+
 def test_controlplane_public_base_url_defaults_to_aquarium_subdomain(settings) -> None:
     from controlplane.core import settings as controlplane_settings
 
