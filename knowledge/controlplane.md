@@ -224,12 +224,22 @@ Use `make controlplane-check` for a quick Django health/config check.
 
 ## Operator UI
 
-The operator UI is the Django admin styled through Unfold.
+The operator UI is the Django admin styled through Unfold, with a project-specific dark visual system called **Deep Ocean Operator Console**.
+
+Deep Ocean rules:
+
+- agents are the primary product object
+- runtimes are shown as infrastructure under agent lifecycle
+- `controlplane/templates/admin/operator_base.html` owns the shared shell, tokens, panels, buttons, forms, status pills, choice cards, tables, and responsive rules
+- normal `GET` pages must remain read-only and render cached/persisted state
+- live diagnostics, secret verification, smoke checks, runtime probes, and destructive actions must stay explicit operator actions
+- UI templates must preserve existing POST field names and API contracts
+- secrets must render only as masked labels, backend references, or write-only inputs
+- the interface should stay terse: short labels, large sans-serif type, dark panels, clear state color, and no decorative motion that hides operational meaning
 
 Current pages and flows:
 
-- Admin root operator landing page
-- Agent Home
+- Command Deck at `/admin/`
 - Create Agent wizard at `/admin/agents/new/`
 - Agent Studio at `/admin/agents/<agent_slug>/`
 - Workspace Vault at `/admin/vault/`
@@ -251,9 +261,10 @@ The important operator decision is now explicit:
 
 Agent-first surfaces:
 
-- `/admin/` now shows `Agent Home` first and keeps runtime inventory below it
-- `/admin/agents/new/` creates a **draft** only
-- `/admin/agents/<slug>/` is the configuration-first Agent Studio
+- `/admin/` is the agents-first **Command Deck**
+- `/admin/` shows the inline Agent Composer, Agent Fleet cards, runtime infrastructure, and recent actions
+- `/admin/agents/new/` creates a **draft** only through the full Agent Builder route
+- `/admin/agents/<slug>/` is the configuration-first Agent Studio cockpit
 - launch and stop are explicit actions from Agent Studio
 - internal test chat still routes through the existing runtime chat page when a deployment exists
 
@@ -262,7 +273,9 @@ Agent Builder personality presets:
 - the static catalog lives in `controlplane/domain/personality_presets.py`
 - the current seven presets are `Mara / The Field Operator`, `Viktor / The Hard Reviewer`, `Noa / The Scout`, `Sana / The Diplomat`, `Kiro / The Builder`, `Elin / The Mentor`, and `Rook / The Wild Card`
 - `_agent_builder_context` passes `personality_presets` and a safe JSON prompt map to both `/admin/` and `/admin/agents/new/`
-- the shared builder partial `controlplane/templates/admin/_agent_builder_form.html` renders preset radio cards above the `personality_prompt` textarea
+- the shared builder partial `controlplane/templates/admin/_agent_builder_form.html` renders a hybrid Agent Composer with `Identity`, `Personality`, `Model`, `Channels`, `Skills`, `Limits`, and `Secrets` sections
+- personality presets render as `op-choice-card` radio cards above the `personality_prompt` textarea
+- ordered skills render as capability cards with trust/type badges
 - each card is a creation-time helper showing display name, subtitle, short description, and `Best for`
 - selecting a card uses local JavaScript to fill the textarea and update the generated prompt preview
 - long generated prompts are hidden behind the `View generated prompt` disclosure so the page stays compact
@@ -282,6 +295,14 @@ That runtime page aggregates:
 - diagnostics summary and snippets
 - recent actions
 - recent chat sessions
+
+Runtime UI convention:
+
+- runtime pages use `op-runtime-cockpit`
+- Runtime Wizard uses `op-pressure-rail` for staged setup
+- Runtime Detail is the infrastructure cockpit for lifecycle, LiteLLM, secrets, integrations, diagnostics, and recent events
+- Runtime Diagnostics shows cached diagnostic summaries first
+- Runtime Chat is an internal operator/debug channel, not a user-facing chat product
 
 Current runtime actions from admin:
 
@@ -309,6 +330,14 @@ The dedicated operator sections outside the runtime page are:
 - `/admin/integrations/`
 - `/admin/secrets/`
 
+Configuration page convention:
+
+- providers, models, integrations, and secrets use `op-config-deck`
+- each configuration page starts with a short `op-hero op-panel`
+- existing records stay in compact dark tables or panels
+- create/update/test/delete forms keep existing action names and field names
+- write-only secret inputs must never echo stored secret values
+
 Navigation behavior:
 
 - all operator pages share one Unfold-native layout and header navigation
@@ -319,10 +348,23 @@ Navigation behavior:
 
 Current admin root behavior:
 
-- `/admin/` is the single operator home
+- `/admin/` is the single operator Command Deck
 - it contains direct links to the working configuration sections
-- it contains the current runtimes table with direct links to each runtime's detail, diagnostics, and chat
+- it contains Agent Fleet cards before the runtime infrastructure table
+- it contains the runtime infrastructure table with direct links to each runtime's detail, diagnostics, and chat
 - browser titles are standardized to `... | Aquarium Control Plane`
+
+Browser smoke after UI changes:
+
+- `/admin/`
+- `/admin/agents/new/`
+- `/admin/vault/`
+- `/admin/runtime-wizard/`
+- `/admin/providers/`
+- `/admin/models/`
+- `/admin/integrations/`
+- `/admin/secrets/`
+- at least one runtime detail, diagnostics, and chat page when a runtime exists
 
 ## Control API
 
