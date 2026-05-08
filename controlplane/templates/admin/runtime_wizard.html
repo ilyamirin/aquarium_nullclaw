@@ -5,15 +5,21 @@
 {% endblock %}
 
 {% block operator_body %}
-<section class="op-card">
-  <h2>Progress</h2>
-  <div class="op-actions">
-    {% for item in wizard_steps %}
-    <span class="op-badge {% if item.status == 'current' %}ok{% elif item.status == 'complete' %}neutral{% else %}warn{% endif %}">
-      {{ item.number }}. {{ item.label }}
-    </span>
-    {% endfor %}
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Runtime Infrastructure</p>
+    <h1>Runtime Wizard</h1>
+    <p class="op-subtitle">Create or repair a NullClaw runtime when the agent-first path needs direct infrastructure control.</p>
   </div>
+</section>
+
+<section class="op-pressure-rail op-panel">
+  {% for item in wizard_steps %}
+  <span class="op-pressure-step {{ item.status }}">
+    <span>{{ item.number }}</span>
+    <strong>{{ item.label }}</strong>
+  </span>
+  {% endfor %}
 </section>
 
 {% if not baseline_ready %}
@@ -29,8 +35,13 @@
 </section>
 {% endif %}
 
-<section class="op-card">
-  <h2>Step {{ step }} of {{ wizard_steps|length }}</h2>
+<section class="op-panel op-runtime-step">
+  <div class="op-section-heading">
+    <div>
+      <p class="op-kicker">Runtime Infrastructure</p>
+      <h2>Step {{ step }} of {{ wizard_steps|length }}</h2>
+    </div>
+  </div>
   <form method="post" class="op-form">
     {% csrf_token %}
     <input type="hidden" name="step" value="{{ step }}">

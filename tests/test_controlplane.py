@@ -881,6 +881,28 @@ def test_runtime_and_config_pages_keep_dark_operator_shell(client, admin_user):
         assert "op-panel" in body, url
 
 
+def test_runtime_wizard_uses_pressure_rail(client, admin_user):
+    client.force_login(admin_user)
+
+    response = client.get("/admin/runtime-wizard/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Runtime Wizard" in body
+    assert "op-pressure-rail" in body
+    assert "Create Runtime" in body or "Next" in body
+
+
+def test_runtime_detail_uses_infrastructure_cockpit(operator_client: Client, runtime_fixture: Runtime):
+    response = operator_client.get(f"/admin/runtimes/{runtime_fixture.runtime_id}/")
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "op-runtime-cockpit" in body
+    assert "Lifecycle" in body
+    assert "LiteLLM" in body
+
+
 def test_controlplane_public_base_url_defaults_to_aquarium_subdomain(settings) -> None:
     from controlplane.core import settings as controlplane_settings
 

@@ -6,6 +6,19 @@
 {% endblock %}
 
 {% block operator_body %}
+<div class="op-runtime-cockpit">
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Runtime Infrastructure</p>
+    <h1>{{ runtime.runtime_id }}</h1>
+    <p class="op-subtitle">Lifecycle, LiteLLM controls, secrets, integrations, and cached diagnostics for this runtime.</p>
+  </div>
+  <div class="op-hero-actions">
+    <a href="/admin/runtimes/{{ runtime.runtime_id }}/diagnostics/" class="op-button secondary">Diagnostics</a>
+    <a href="/admin/runtimes/{{ runtime.runtime_id }}/chat/" class="op-button secondary">Chat</a>
+  </div>
+</section>
+
 <section class="op-stat-grid">
   <article class="op-stat">
     <div class="op-stat-label">Runtime</div>
@@ -325,4 +338,5 @@
     </div>
   </article>
 </section>
+</div>
 {% endblock %}
