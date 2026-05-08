@@ -1,9 +1,18 @@
 {% extends "admin/operator_base.html" %}
 
 {% block operator_body %}
-<section class="op-card">
-  <h2>Create Agent</h2>
-  <p class="op-note">Create a draft agent first. Launch happens later from Agent Studio.</p>
-  {% include "admin/_agent_builder_form.html" with agent_form_action="create_agent_inline" agent_submit_label="Create Draft Agent" agent_cancel_href="/admin/" agent_cancel_label="Back to Agent Home" %}
+<section class="op-hero op-panel">
+  <div>
+    <p class="op-kicker">Agent Builder</p>
+    <h1>Create Agent</h1>
+    <p class="op-subtitle">Compose a draft agent, bind its secrets and skills, then launch it explicitly from Agent Studio.</p>
+  </div>
+  <div class="op-hero-actions">
+    <a href="/admin/" class="op-button secondary">Back to Command Deck</a>
+  </div>
+</section>
+
+<section class="op-command-card">
+  {% include "admin/_agent_builder_form.html" with agent_form_action="create_agent_inline" agent_submit_label="Create Draft Agent" agent_cancel_href="/admin/" agent_cancel_label="Back to Command Deck" %}
 </section>
 {% endblock %}
