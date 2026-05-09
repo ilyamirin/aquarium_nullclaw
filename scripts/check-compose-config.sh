@@ -11,7 +11,8 @@ for stack_dir in \
   "$ROOT_DIR/nullclaw-probe-stack" \
   "$ROOT_DIR/infisical-stack" \
   "$ROOT_DIR/litellm-stack" \
-  "$ROOT_DIR/monitoring-stack"; do
+  "$ROOT_DIR/monitoring-stack" \
+  "$ROOT_DIR/perimeter-stack"; do
   docker compose -f "$stack_dir/docker-compose.yml" config >/dev/null
   echo "docker compose config is valid: $stack_dir/docker-compose.yml"
 done

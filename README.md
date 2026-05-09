@@ -145,6 +145,8 @@ SSO perimeter surfaces:
 - Grafana: [https://grafana.aquarium.local](https://grafana.aquarium.local)
 - Infisical: [https://secrets.aquarium.local](https://secrets.aquarium.local)
 
+The local HTTPS perimeter uses `mkcert`-issued trusted certificates instead of Caddy's internal CA. Run `make perimeter-tls` once on a workstation before `make perimeter-bootstrap`; it writes ignored cert/key files under `perimeter-stack/certs/` and installs the local mkcert CA into the OS/browser trust store.
+
 The supported operator browser path is the Authelia-protected perimeter. Grafana uses proxy auth behind that gate. Infisical is intentionally perimeter-gated only in v1: after the outer Authelia session is accepted, Infisical keeps its own internal app auth and secret-administration model. A deeper app-level Infisical SSO bridge is not required for this local single-operator platform phase.
 
 The bootstrap operator account for the local control plane is:

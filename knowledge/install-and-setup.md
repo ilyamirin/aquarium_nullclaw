@@ -130,11 +130,11 @@ make infisical-health
 Expected:
 
 - `http://127.0.0.1:18080/api/status` responds
-- the supported UI entry is `http://secrets.aquarium.local`
+- the supported UI entry is `https://secrets.aquarium.local`
 
 ## Step 6: Create The First Infisical Admin
 
-Open [http://secrets.aquarium.local](http://secrets.aquarium.local) and create the first user.
+Open [https://secrets.aquarium.local](https://secrets.aquarium.local) and create the first user.
 
 Then authenticate the local CLI:
 
@@ -301,7 +301,7 @@ make controlplane-run
 Expected:
 
 - [http://127.0.0.1:15000/admin/](http://127.0.0.1:15000/admin/) responds
-- [http://app.aquarium.local](http://app.aquarium.local) is the supported browser entry when the perimeter stack is running
+- [https://app.aquarium.local](https://app.aquarium.local) is the supported browser entry when the perimeter stack is running
 - login works with the bootstrap operator
 - runtime list shows the imported runtimes
 - runtime detail pages are populated instead of empty raw tables

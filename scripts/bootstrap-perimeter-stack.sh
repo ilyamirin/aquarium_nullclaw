@@ -167,6 +167,7 @@ ensure_env_file
 ensure_users_file
 
 echo "Bootstrapped perimeter stack defaults in $ENV_FILE"
+echo "Trusted local TLS certs are expected under $PERIMETER_DIR/certs. Run make perimeter-tls if they are missing."
 if grep -Eq '^INFISICAL_OPERATOR_TOKEN=' "$ENV_FILE"; then
   echo "Stored INFISICAL_OPERATOR_TOKEN for the containerized control plane."
 else

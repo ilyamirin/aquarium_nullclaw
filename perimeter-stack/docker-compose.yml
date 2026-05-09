@@ -8,6 +8,7 @@ services:
       - "${PERIMETER_HTTPS_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
     depends_on:
       - authelia
       - controlplane

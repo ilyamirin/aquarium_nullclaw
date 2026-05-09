@@ -1,6 +1,9 @@
 {
 	admin off
-	local_certs
+}
+
+(aquarium_tls) {
+	tls /certs/aquarium-local.pem /certs/aquarium-local-key.pem
 }
 
 (authelia_gate) {
@@ -12,20 +15,20 @@
 
 app.aquarium.local, app.lvh.me {
 	import authelia_gate
-	tls internal
+	import aquarium_tls
 	reverse_proxy controlplane:8000 {
 		header_up Remote-User {header.Remote-User}
 	}
 }
 
 auth.aquarium.local, auth.lvh.me {
-	tls internal
+	import aquarium_tls
 	reverse_proxy authelia:9091
 }
 
 grafana.aquarium.local, grafana.lvh.me {
 	import authelia_gate
-	tls internal
+	import aquarium_tls
 	reverse_proxy aquarium-grafana:3000 {
 		header_up Remote-User {header.Remote-User}
 	}
@@ -33,6 +36,6 @@ grafana.aquarium.local, grafana.lvh.me {
 
 secrets.aquarium.local, secrets.lvh.me {
 	import authelia_gate
-	tls internal
+	import aquarium_tls
 	reverse_proxy backend:8080
 }

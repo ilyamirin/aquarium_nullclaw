@@ -14,6 +14,8 @@ Current perimeter components:
 
 - `Caddy`
   ingress and host-based routing
+- `mkcert`
+  locally trusted certificate authority and workstation-issued TLS certificate
 - `Authelia`
   visible login boundary and session owner
 - Django control plane
@@ -43,8 +45,46 @@ Direct loopback URLs remain relevant for internal API traffic and health checks,
 
 Important implementation note:
 
-- Authelia `v4.39.x` rejects insecure session URLs, so the local perimeter had to move from plain HTTP to `Caddy`-terminated HTTPS with `tls internal`.
+- Authelia `v4.39.x` rejects insecure session URLs, so the local perimeter uses `Caddy`-terminated HTTPS.
+- The perimeter now uses `mkcert`-issued certificates instead of Caddy `tls internal`, because browsers trust mkcert's local CA after `mkcert -install`.
 - The repo still keeps plain loopback ports for internal health and bootstrap flows, but the supported browser path is now HTTPS through the perimeter.
+
+## Trusted Local TLS
+
+Run this once per workstation:
+
+```bash
+make perimeter-tls
+```
+
+This calls [`scripts/setup-local-trusted-tls.sh`](/Users/ilyagmirin/PycharmProjects/aquarium/scripts/setup-local-trusted-tls.sh), which:
+
+- requires `mkcert`
+- runs `mkcert -install`
+- writes `perimeter-stack/certs/aquarium-local.pem`
+- writes `perimeter-stack/certs/aquarium-local-key.pem`
+
+The generated certificate covers:
+
+- `app.aquarium.local`
+- `auth.aquarium.local`
+- `grafana.aquarium.local`
+- `secrets.aquarium.local`
+- `app.lvh.me`
+- `auth.lvh.me`
+- `grafana.lvh.me`
+- `secrets.lvh.me`
+- `localhost`
+- `127.0.0.1`
+- `::1`
+
+The `perimeter-stack/certs/` directory is ignored by git. Regenerate with:
+
+```bash
+AQUARIUM_TLS_FORCE=1 make perimeter-tls
+```
+
+Operators can override the SAN list with `AQUARIUM_TLS_HOSTS`, but the default list is the project contract.
 
 ## Bootstrap
 
@@ -54,7 +94,7 @@ Bootstrap once before starting the perimeter:
 make perimeter-bootstrap
 ```
 
-That writes the ignored file:
+That first ensures trusted local TLS certs exist and then writes the ignored file:
 
 - `perimeter-stack/.env`
 
@@ -84,7 +124,7 @@ The perimeter health check now verifies:
 - `grafana.aquarium.local`
 - `secrets.aquarium.local`
 
-It uses `curl -k --resolve ... https://...` so health validation still works even though the perimeter certificate is locally issued by Caddy.
+It uses `curl --resolve ... https://...` without `-k`, so health validation verifies that the local mkcert CA is trusted.
 
 ## Operational Notes
 

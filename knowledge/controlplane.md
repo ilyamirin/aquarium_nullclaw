@@ -203,6 +203,7 @@ Local endpoint:
 
 Perimeter bootstrap and local operator entrypoints:
 
+- `make perimeter-tls` installs the local `mkcert` CA and writes ignored cert/key files into `perimeter-stack/certs/`
 - `make perimeter-bootstrap` writes `perimeter-stack/.env` without rotating existing Authelia secrets on rerun
 - if `perimeter-stack/authelia/users_database.yml` is missing, bootstrap creates it once with either:
   - `AUTHELIA_ADMIN_PASSWORD_HASH`
