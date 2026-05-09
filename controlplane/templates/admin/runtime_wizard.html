@@ -50,22 +50,27 @@
     <div class="op-form-grid">
       <div class="op-field">
         <label for="runtime_id">Runtime ID</label>
+        <span class="op-help">Technical id for the runtime, compose services, local data folder, and Infisical project. Use lowercase letters, numbers, and dashes.</span>
         <input id="runtime_id" type="text" name="runtime_id" value="{{ wizard.runtime_id }}" required>
       </div>
       <div class="op-field">
         <label for="gateway_port">Gateway Port</label>
+        <span class="op-help">Local gateway port on 127.0.0.1. It must be unique and free.</span>
         <input id="gateway_port" type="number" name="gateway_port" value="{{ wizard.gateway_port }}" required>
       </div>
       <div class="op-field">
         <label for="tenant">Tenant</label>
+        <span class="op-help">Logical customer or owner namespace. Use default for local tests.</span>
         <input id="tenant" type="text" name="tenant" value="{{ wizard.tenant }}">
       </div>
       <div class="op-field">
         <label for="plan">Plan</label>
+        <span class="op-help">Commercial or operational plan metadata. It helps explain limits and defaults.</span>
         <input id="plan" type="text" name="plan" value="{{ wizard.plan }}">
       </div>
       <div class="op-field">
         <label for="runtime_role">Runtime Profile</label>
+        <span class="op-help">Predefined runtime intent. Live is a real bot, probe tests isolation, limit-probe tests budget and rate limits.</span>
         <select id="runtime_role" name="runtime_role">
           <option value="live" {% if wizard.runtime_role == "live" %}selected{% endif %}>live</option>
           <option value="probe" {% if wizard.runtime_role == "probe" %}selected{% endif %}>probe</option>
@@ -79,22 +84,27 @@
     <div class="op-form-grid">
       <div class="op-field">
         <label for="model">Model Alias</label>
+        <span class="op-help">LiteLLM-facing model alias. Runtimes use LiteLLM keys, not provider master keys.</span>
         <input id="model" type="text" name="model" value="{{ wizard.model }}">
       </div>
       <div class="op-field">
         <label for="budget_usd">Budget (USD)</label>
+        <span class="op-help">Spend budget applied to the runtime's LiteLLM key.</span>
         <input id="budget_usd" type="text" name="budget_usd" value="{{ wizard.budget_usd }}">
       </div>
       <div class="op-field">
         <label for="rpm_limit">RPM Limit</label>
+        <span class="op-help">Requests per minute. Controls burst traffic.</span>
         <input id="rpm_limit" type="text" name="rpm_limit" value="{{ wizard.rpm_limit }}">
       </div>
       <div class="op-field">
         <label for="tpm_limit">TPM Limit</label>
+        <span class="op-help">Tokens per minute. Controls large prompts and long responses.</span>
         <input id="tpm_limit" type="text" name="tpm_limit" value="{{ wizard.tpm_limit }}">
       </div>
       <div class="op-field">
         <label for="provider_connection_id">Provider Connection</label>
+        <span class="op-help">Platform provider route behind LiteLLM. Usually leave the default selected.</span>
         <select id="provider_connection_id" name="provider_connection_id">
           <option value="">-</option>
           {% for provider in providers %}
@@ -104,6 +114,7 @@
       </div>
       <div class="op-field">
         <label for="provider_model_id">Provider Model</label>
+        <span class="op-help">Catalog model record that backs the alias and pricing metadata.</span>
         <select id="provider_model_id" name="provider_model_id">
           <option value="">-</option>
           {% for model in models %}
@@ -115,6 +126,7 @@
     {% elif step == 3 %}
     <fieldset class="op-field">
       <legend>Channels &amp; Tools</legend>
+      <span class="op-help">Channels expose the runtime to external systems. Tools add controlled internal capabilities.</span>
       <div class="op-checkboxes">
         <label class="op-checkbox"><input type="checkbox" name="telegram_enabled" value="1" {% if wizard.telegram_enabled %}checked{% endif %}> Telegram</label>
         <label class="op-checkbox"><input type="checkbox" name="slack_enabled" value="1" {% if wizard.slack_enabled %}checked{% endif %}> Slack</label>
@@ -126,15 +138,18 @@
     <div class="op-form-grid">
       <div class="op-field">
         <label for="search_provider">Search Provider</label>
+        <span class="op-help">Optional search backend identifier, used only when Search is enabled.</span>
         <input id="search_provider" type="text" name="search_provider" value="{{ wizard.search_provider }}">
       </div>
       <div class="op-field">
         <label for="search_base_url">Search Base URL</label>
+        <span class="op-help">Optional internal search endpoint. Keep blank unless a search adapter is configured.</span>
         <input id="search_base_url" type="text" name="search_base_url" value="{{ wizard.search_base_url }}">
       </div>
     </div>
     <fieldset class="op-field">
       <legend>Operator Skills</legend>
+      <span class="op-help">Selected skills become reviewed capability context for the runtime. Disabled skills show missing dependencies.</span>
       <div class="op-grid cols-2">
         {% for skill in skill_catalog %}
         <label class="op-check op-card op-card-compact">
@@ -164,10 +179,12 @@
     <div class="op-form-grid">
       <div class="op-field">
         <label for="telegram_bot_token">Telegram Bot Token</label>
+        <span class="op-help">Write-only token value. Stored in Infisical and never rendered back in the UI.</span>
         <input id="telegram_bot_token" type="password" name="telegram_bot_token" placeholder="write-only">
       </div>
       <div class="op-field">
         <label for="telegram_allow_from">Telegram Allow From</label>
+        <span class="op-help">Telegram user id allowlist. Use your own id for private bot testing.</span>
         <input id="telegram_allow_from" type="text" name="telegram_allow_from" value="{{ wizard.telegram_allow_from }}">
       </div>
     </div>

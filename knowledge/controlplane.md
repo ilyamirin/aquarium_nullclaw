@@ -231,6 +231,8 @@ Deep Ocean rules:
 - agents are the primary product object
 - runtimes are shown as infrastructure under agent lifecycle
 - `controlplane/templates/admin/operator_base.html` owns the shared shell, tokens, panels, buttons, forms, status pills, choice cards, tables, and responsive rules
+- form helpers use the `op-help` pattern: short visible text directly under labels, not hidden tooltips
+- important caveats use `op-field-note`, which is still compact but more visually prominent than normal helper copy
 - normal `GET` pages must remain read-only and render cached/persisted state
 - live diagnostics, secret verification, smoke checks, runtime probes, and destructive actions must stay explicit operator actions
 - UI templates must preserve existing POST field names and API contracts
@@ -267,6 +269,8 @@ Agent-first surfaces:
 - `/admin/agents/<slug>/` is the configuration-first Agent Studio cockpit
 - launch and stop are explicit actions from Agent Studio
 - internal test chat still routes through the existing runtime chat page when a deployment exists
+- launch materializes the final `AgentBuildSpec.personality_prompt` plus selected skill descriptions into the runtime system prompt
+- the generated runtime config defines a named NullClaw agent profile using the runtime id, so internal chat can invoke the correct profile with `nullclaw agent --agent <runtime-id>`
 
 Agent Builder personality presets:
 
@@ -274,13 +278,18 @@ Agent Builder personality presets:
 - the current seven presets are `Mara / The Field Operator`, `Viktor / The Hard Reviewer`, `Noa / The Scout`, `Sana / The Diplomat`, `Kiro / The Builder`, `Elin / The Mentor`, and `Rook / The Wild Card`
 - `_agent_builder_context` passes `personality_presets` and a safe JSON prompt map to both `/admin/` and `/admin/agents/new/`
 - the shared builder partial `controlplane/templates/admin/_agent_builder_form.html` renders a hybrid Agent Composer with `Identity`, `Personality`, `Model`, `Channels`, `Skills`, `Limits`, and `Secrets` sections
-- personality presets render as `op-choice-card` radio cards above the `personality_prompt` textarea
+- technical fields in the builder carry short helpers explaining operational impact, for example `Slug` as the permanent technical name used in URLs/runtime ids/Docker/Infisical/local folders, `Gateway Port`, LiteLLM budget/RPM/TPM, and Telegram secret bindings
+- personality presets render as homogeneous `op-choice-card` radio cards together with the `Custom Prompt` card
+- selecting a preset hides the `Personality Prompt` textarea and uses that preset text at launch
+- selecting `Custom Prompt` opens the textarea and makes it the submitted system prompt source; first selection starts from an empty custom prompt unless the operator already typed one
+- preset text is inspectable through `Review prompt text`; the disclosure is hidden in `Custom Prompt` mode to avoid implying that a generated prompt exists
+- avoid ambiguous labels such as `View generated prompt`
 - ordered skills render as capability cards with trust/type badges
 - each card is a creation-time helper showing display name, subtitle, short description, and `Best for`
 - selecting a card uses local JavaScript to fill the textarea and update the generated prompt preview
-- long generated prompts are hidden behind the `View generated prompt` disclosure so the page stays compact
-- manual textarea edits mark the prompt as customized from the active preset
-- selecting a different preset after custom edits asks for browser confirmation before overwriting the textarea
+- long preset prompts are hidden behind the `Review prompt text` disclosure so the page stays compact
+- editing the textarea keeps `Custom Prompt` selected
+- switching from `Custom Prompt` back to a preset asks for browser confirmation before replacing typed custom text
 - JavaScript is progressive enhancement only; if it fails, the textarea remains usable and remains the submitted source of truth
 - v1 does not submit or store a preset ID; only the final `personality_prompt` textarea value is saved on the build spec
 - because only the final prompt text is persisted, future edits to the static preset catalog do not mutate existing agents
@@ -300,6 +309,7 @@ Runtime UI convention:
 
 - runtime pages use `op-runtime-cockpit`
 - Runtime Wizard uses `op-pressure-rail` for staged setup
+- Runtime Wizard fields carry the same `op-help` convention because it exposes lower-level infrastructure terms such as runtime id, tenant, plan, provider model, and channel/tool toggles
 - Runtime Detail is the infrastructure cockpit for lifecycle, LiteLLM, secrets, integrations, diagnostics, and recent events
 - Runtime Diagnostics shows cached diagnostic summaries first
 - Runtime Chat is an internal operator/debug channel, not a user-facing chat product

@@ -51,6 +51,7 @@ from orchestrator.service_layer import (
     launch_agent,
     runtime_config_view,
     runtime_detail_payload,
+    send_chat_message,
     skill_catalog_payload,
     public_surface_payload,
     stop_agent,
@@ -1354,6 +1355,60 @@ def test_render_nullclaw_config_uses_effectively_unbounded_action_cap(tmp_path) 
     assert rendered["autonomy"]["max_actions_per_hour"] == int(NULLCLAW_MAX_ACTIONS_PER_HOUR)
 
 
+def test_render_nullclaw_config_includes_named_agent_profile(tmp_path) -> None:
+    home = tmp_path / "nullclaw-home"
+    prompt_path = home / "system-prompt.md"
+    prompt_path.parent.mkdir(parents=True)
+    prompt_path.write_text("You are Viktor. Expose selected operator skills as context.\n")
+    env = {
+        "NULLCLAW_HOME": str(home),
+        "NULLCLAW_ENABLE_TELEGRAM": "false",
+        "NULLCLAW_AGENT_NAME": "viktor-ui-smoke",
+        "NULLCLAW_SYSTEM_PROMPT_PATH": str(prompt_path),
+        "LITELLM_API_KEY": "runtime-key",
+        "LITELLM_BASE_URL": "http://host.docker.internal:14000/v1",
+    }
+
+    completed = subprocess.run(
+        ["sh", "scripts/render-nullclaw-config.sh"],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    rendered = json.loads((home / "config.json").read_text())
+
+    assert completed.stdout == ""
+    assert "Rendered" in completed.stderr
+    assert rendered["agents"]["list"][0] == {
+        "name": "viktor-ui-smoke",
+        "provider": "custom:http://host.docker.internal:14000/v1",
+        "model": "openai/qwen/qwen3.6-plus",
+        "system_prompt": str(prompt_path),
+    }
+
+
+@pytest.mark.django_db
+def test_send_chat_message_uses_named_agent_and_quiet_build(runtime_fixture: Runtime, monkeypatch) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(args):
+        captured["args"] = list(args)
+        return "agent reply"
+
+    monkeypatch.setattr("orchestrator.service_layer.run", fake_run)
+    session = runtime_fixture.chat_sessions.create(title="UI smoke")
+
+    result = send_chat_message(runtime_fixture.runtime_id, session.pk, "hello")
+
+    assert "--quiet-build" in captured["args"]
+    assert captured["args"][captured["args"].index("--agent") + 1] == runtime_fixture.runtime_id
+    assert result["response"] == "agent reply"
+    assert session.messages.filter(role="assistant", content="agent reply").exists()
+
+
 @pytest.mark.django_db
 def test_sqlite_connection_uses_wal_and_busy_timeout() -> None:
     if connection.vendor != "sqlite":
@@ -1571,10 +1626,12 @@ def test_agent_wizard_renders_personality_preset_cards(operator_client: Client, 
     response = operator_client.get("/admin/agents/new/")
 
     assert response.status_code == 200
-    assert b"Choose a personality preset" in response.content
+    assert b"Choose a preset or write a custom runtime behavior contract." in response.content
     assert b"mara-field-operator" in response.content
     assert b"Mara" in response.content
     assert b"The Field Operator" in response.content
+    assert b"Custom Prompt" in response.content
+    assert b"Review prompt text" in response.content
 
 
 @pytest.mark.django_db
@@ -1587,10 +1644,12 @@ def test_admin_home_inline_agent_builder_renders_personality_preset_cards(
     response = operator_client.get("/admin/")
 
     assert response.status_code == 200
-    assert b"Choose a personality preset" in response.content
+    assert b"Choose a preset or write a custom runtime behavior contract." in response.content
     assert b"viktor-hard-reviewer" in response.content
     assert b"Viktor" in response.content
     assert b"The Hard Reviewer" in response.content
+    assert b"Custom Prompt" in response.content
+    assert b"Review prompt text" in response.content
 
 
 @pytest.mark.django_db

@@ -19,19 +19,23 @@
       <div class="op-grid cols-2">
         <label>
           <span class="op-label">Name</span>
+          <span class="op-help">Human-readable bot name shown in cards and headers. Safe to rename later.</span>
           <input class="op-input" type="text" name="name" required>
         </label>
         <label>
           <span class="op-label">Slug</span>
+          <span class="op-help">Permanent technical name for this agent. It becomes part of URLs, runtime id, Docker service names, Infisical project names, and local folders. Use lowercase letters, numbers, and dashes, for example support-bot.</span>
           <input class="op-input" type="text" name="slug" required>
         </label>
         <label>
           <span class="op-label">Gateway Port</span>
+          <span class="op-help">Local runtime API port on 127.0.0.1. It must be free and unique for this machine.</span>
           <input class="op-input" type="number" name="gateway_port" value="3910">
         </label>
       </div>
       <label>
         <span class="op-label">Description</span>
+        <span class="op-help">Operator-facing purpose note. It is metadata only today; behavior comes from the personality prompt and selected skills.</span>
         <textarea class="op-input" name="description" rows="2"></textarea>
       </label>
     </section>
@@ -41,7 +45,7 @@
         <div>
           <p class="op-kicker">Step 02</p>
           <h2>Personality</h2>
-          <p class="op-note">Choose a personality preset, then inspect or edit the generated prompt before saving.</p>
+          <p class="op-note">Choose a preset or write a custom runtime behavior contract.</p>
         </div>
       </div>
       {% if personality_presets %}
@@ -57,15 +61,25 @@
           </span>
         </label>
         {% endfor %}
+        <label class="op-choice-card op-personality-card" data-preset-card data-preset-display="Custom Prompt">
+          <input type="radio" value="custom" data-preset-radio data-preset-key="__custom__">
+          <span class="op-choice-card-body">
+            <span class="op-choice-eyebrow">Write your own</span>
+            <strong>Custom Prompt</strong>
+            <span>Use this when presets are too generic or the agent needs a very specific role.</span>
+            <span class="op-choice-footer">Best for: unusual workflows, strict policies, experimental personas.</span>
+          </span>
+        </label>
       </div>
-      <div class="op-prompt-status" data-personality-prompt-status>Custom prompt</div>
+      <p class="op-field-note" data-personality-prompt-note>Preset prompt will be used at launch. Choose Custom Prompt to write your own.</p>
       <details class="op-prompt-disclosure">
-        <summary>View generated prompt</summary>
-        <pre class="op-pre op-prompt-preview" data-personality-prompt-preview>Choose a preset to preview the generated prompt.</pre>
+        <summary>Review prompt text</summary>
+        <pre class="op-pre op-prompt-preview" data-personality-prompt-preview>This text becomes the runtime system prompt after launch.</pre>
       </details>
       {% endif %}
-      <label>
+      <label data-personality-prompt-editor>
         <span class="op-label">Personality Prompt</span>
+        <span class="op-help">Main behavior instruction. This is written into the runtime system prompt when the agent is launched.</span>
         <textarea class="op-input" name="personality_prompt" rows="8" placeholder="You are calm, reliable, and concise."></textarea>
       </label>
     </section>
@@ -80,6 +94,7 @@
       </div>
       <label>
         <span class="op-label">Model Alias</span>
+        <span class="op-help">LiteLLM-facing model route. The runtime receives a per-agent LiteLLM key, never a provider master key.</span>
         <select class="op-input" name="model_alias">
           {% for model in agent_models %}
           <option value="{{ model.alias }}">{{ model.alias }}</option>
@@ -103,6 +118,7 @@
         <span class="op-choice-card-body">
           <strong>Telegram</strong>
           <span>Use Telegram as the primary external channel.</span>
+          <span class="op-help">Requires a Telegram Bot Secret before launch. Turn it off for internal chat-only testing.</span>
         </span>
       </label>
     </section>
@@ -132,6 +148,7 @@
         <div class="op-empty">No curated skills available yet.</div>
         {% endfor %}
       </div>
+      <p class="op-field-note">Selected skills become reviewed operator context in the runtime system prompt. They do not grant raw host access or raw secret access by themselves.</p>
     </section>
 
     <section class="op-composer-section">
@@ -145,14 +162,17 @@
       <div class="op-grid cols-3">
         <label>
           <span class="op-label">LiteLLM Budget USD</span>
+          <span class="op-help">Spend budget for this runtime key. Leave blank to use the default for the runtime role or plan.</span>
           <input class="op-input" type="number" name="litellm_budget_usd" step="0.01">
         </label>
         <label>
           <span class="op-label">LiteLLM RPM</span>
+          <span class="op-help">Requests per minute. Use this to stop bursty model traffic.</span>
           <input class="op-input" type="number" name="litellm_rpm_limit">
         </label>
         <label>
           <span class="op-label">LiteLLM TPM</span>
+          <span class="op-help">Tokens per minute. Use this to cap large prompts and long answers.</span>
           <input class="op-input" type="number" name="litellm_tpm_limit">
         </label>
       </div>
@@ -169,6 +189,7 @@
       <div class="op-grid cols-2">
         <label>
           <span class="op-label">Telegram Bot Secret</span>
+          <span class="op-help">Reference to an existing Infisical-backed secret, not the token value. Required only when Telegram is enabled.</span>
           <select class="op-input" name="telegram_bot_secret">
             <option value="">Select secret</option>
             {% for secret in workspace_secrets %}
@@ -178,6 +199,7 @@
         </label>
         <label>
           <span class="op-label">Telegram Allow-From Secret</span>
+          <span class="op-help">Optional secret containing allowed Telegram user ids. It prevents random users from talking to the bot.</span>
           <select class="op-input" name="telegram_allow_secret">
             <option value="">Optional</option>
             {% for secret in workspace_secrets %}
@@ -204,13 +226,17 @@
       var promptData = root.querySelector("#personality-preset-prompts");
       var textarea = root.querySelector('textarea[name="personality_prompt"]');
       var preview = root.querySelector("[data-personality-prompt-preview]");
-      var status = root.querySelector("[data-personality-prompt-status]");
+      var note = root.querySelector("[data-personality-prompt-note]");
+      var editor = root.querySelector("[data-personality-prompt-editor]");
+      var promptDisclosure = root.querySelector(".op-prompt-disclosure");
       var radios = Array.prototype.slice.call(root.querySelectorAll("[data-preset-radio]"));
       if (!promptData || !textarea || !radios.length) return;
 
       var prompts = JSON.parse(promptData.textContent);
       var activeKey = null;
       var activePrompt = "";
+      var customKey = "__custom__";
+      var customPrompt = textarea.value.trim().length > 0 ? textarea.value : "";
       var suppressInput = false;
 
       function presetName(key) {
@@ -222,7 +248,7 @@
       }
 
       function hasCustomizedPrompt() {
-        if (activeKey) {
+        if (activeKey && activeKey !== customKey) {
           return textarea.value !== activePrompt;
         }
         return textarea.value.length > 0;
@@ -234,8 +260,20 @@
         });
       }
 
-      function setStatus(message) {
-        if (status) status.textContent = message;
+      function setNote(message) {
+        if (note) note.textContent = message;
+      }
+
+      function showEditor(visible) {
+        if (!editor) return;
+        editor.hidden = !visible;
+        textarea.required = visible;
+      }
+
+      function showPromptReview(visible) {
+        if (!promptDisclosure) return;
+        promptDisclosure.hidden = !visible;
+        if (!visible) promptDisclosure.open = false;
       }
 
       function applyPreset(key) {
@@ -245,21 +283,41 @@
         textarea.value = activePrompt;
         suppressInput = false;
         if (preview) preview.textContent = activePrompt || "No generated prompt is available.";
-        setStatus("Using " + presetName(key) + " preset");
+        showEditor(false);
+        showPromptReview(true);
+        setNote(presetName(key) + " prompt will be used at launch. Open Review prompt text to inspect it.");
+      }
+
+      function applyCustom() {
+        activeKey = customKey;
+        activePrompt = customPrompt;
+        suppressInput = true;
+        textarea.value = customPrompt;
+        suppressInput = false;
+        showEditor(true);
+        showPromptReview(false);
+        if (preview) preview.textContent = textarea.value || "Write a custom personality prompt below.";
+        setNote("Custom Prompt is active. The textarea below becomes the runtime system prompt.");
       }
 
       radios.forEach(function (radio) {
         radio.addEventListener("change", function () {
           if (!radio.checked) return;
           var nextKey = radio.dataset.presetKey;
+          if (nextKey === customKey) {
+            setChecked(customKey);
+            applyCustom();
+            textarea.focus();
+            return;
+          }
           if (!prompts[nextKey]) return;
 
-          if (hasCustomizedPrompt()) {
+          if (activeKey === customKey && hasCustomizedPrompt()) {
             var confirmed = window.confirm(
               "Replace the current personality prompt with the " + presetName(nextKey) + " preset?"
             );
             if (!confirmed) {
-              setChecked(activeKey);
+              setChecked(customKey);
               return;
             }
           }
@@ -271,16 +329,29 @@
 
       textarea.addEventListener("input", function () {
         if (suppressInput) return;
-        if (activeKey && textarea.value !== activePrompt) {
-          setStatus("Customized from " + presetName(activeKey) + " preset");
-        } else if (activeKey) {
-          setStatus("Using " + presetName(activeKey) + " preset");
-        } else if (textarea.value.length > 0) {
-          setStatus("Custom prompt");
-        } else {
-          setStatus("Custom prompt");
-        }
+        activeKey = customKey;
+        customPrompt = textarea.value;
+        setChecked(customKey);
+        showPromptReview(false);
+        if (preview) preview.textContent = textarea.value || "Write a custom personality prompt below.";
+        setNote("Custom Prompt is active. The textarea below becomes the runtime system prompt.");
       });
+
+      if (textarea.value.trim().length > 0) {
+        setChecked(customKey);
+        applyCustom();
+      } else {
+        var firstPreset = radios.find(function (radio) {
+          return radio.dataset.presetKey !== customKey && prompts[radio.dataset.presetKey];
+        });
+        if (firstPreset) {
+          setChecked(firstPreset.dataset.presetKey);
+          applyPreset(firstPreset.dataset.presetKey);
+        } else {
+          setChecked(customKey);
+          applyCustom();
+        }
+      }
     })();
   </script>
 </div>

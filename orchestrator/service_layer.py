@@ -1159,6 +1159,11 @@ def _provision_litellm_key(runtime: Runtime, *, api_url: str, litellm_base_url: 
 def _write_runtime_env(runtime: Runtime, service_token: str, api_url: str) -> None:
     env_path = Path(runtime.runtime_env_file)
     env_path.parent.mkdir(parents=True, exist_ok=True)
+    system_prompt = str(runtime.settings.get("system_prompt", "")).strip()
+    if system_prompt:
+        prompt_path = Path(runtime.runtime_home) / "system-prompt.md"
+        prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        prompt_path.write_text(system_prompt + "\n")
     values = {
         "INFISICAL_API_URL": _runtime_api_url(api_url),
         "INFISICAL_ENV": runtime.infisical_env,
@@ -1180,6 +1185,9 @@ def _write_runtime_env(runtime: Runtime, service_token: str, api_url: str) -> No
         "NULLCLAW_TOKEN_USAGE_LEDGER_ENABLED": "true",
         "LITELLM_BASE_URL": runtime_base_url(),
     }
+    if system_prompt:
+        values["NULLCLAW_AGENT_NAME"] = runtime.runtime_id
+        values["NULLCLAW_SYSTEM_PROMPT_PATH"] = "/nullclaw-data/system-prompt.md"
     if runtime.desired_channels.get("slack"):
         values["NULLCLAW_ENABLE_SLACK"] = "true"
     if runtime.desired_channels.get("mattermost"):
@@ -2748,9 +2756,12 @@ def send_chat_message(runtime_id: str, session_id: int, message: str, *, actor: 
         "-f",
         str(COMPOSE_FILE),
         "run",
+        "--quiet-build",
         "--rm",
         f"agent-{runtime.runtime_id}",
         "agent",
+        "--agent",
+        runtime.runtime_id,
         "-m",
         message,
     ]

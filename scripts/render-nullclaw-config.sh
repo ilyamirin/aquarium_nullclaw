@@ -76,6 +76,8 @@ NULLCLAW_OTEL_SERVICE_NAME=${NULLCLAW_OTEL_SERVICE_NAME:-nullclaw-local}
 NULLCLAW_HTTP_ENABLED=$(bool_or_default "${NULLCLAW_HTTP_ENABLED-}" false)
 NULLCLAW_SEARCH_PROVIDER=${NULLCLAW_SEARCH_PROVIDER-auto}
 NULLCLAW_SEARCH_BASE_URL=${NULLCLAW_SEARCH_BASE_URL-}
+NULLCLAW_AGENT_NAME=${NULLCLAW_AGENT_NAME-}
+NULLCLAW_SYSTEM_PROMPT_PATH=${NULLCLAW_SYSTEM_PROMPT_PATH-}
 
 CHANNEL_ITEMS='
     "cli": true'
@@ -182,6 +184,23 @@ EOF
   )
 fi
 
+AGENT_LIST_BLOCK=''
+if [ -n "$NULLCLAW_AGENT_NAME" ] && [ -n "$NULLCLAW_SYSTEM_PROMPT_PATH" ]; then
+  AGENT_LIST_BLOCK=$(
+    cat <<EOF
+,
+    "list": [
+      {
+        "name": "$(json_escape "$NULLCLAW_AGENT_NAME")",
+        "provider": "$(json_escape "$NULLCLAW_PROVIDER")",
+        "model": "$(json_escape "$NULLCLAW_MODEL")",
+        "system_prompt": "$(json_escape "$NULLCLAW_SYSTEM_PROMPT_PATH")"
+      }
+    ]
+EOF
+  )
+fi
+
 HTTP_REQUEST_BLOCK=$(
   cat <<EOF
   "http_request": {
@@ -219,7 +238,7 @@ cat >"$CONFIG_PATH" <<EOF
         "provider": "$(json_escape "$NULLCLAW_PROVIDER")",
         "primary": "$(json_escape "$NULLCLAW_MODEL")"
       }
-    }
+    }$AGENT_LIST_BLOCK
   },
 $CHANNELS_BLOCK
   "memory": {
@@ -249,4 +268,4 @@ $HTTP_REQUEST_BLOCK
 }
 EOF
 
-echo "Rendered $CONFIG_PATH"
+echo "Rendered $CONFIG_PATH" >&2

@@ -228,6 +228,9 @@ Current behavior:
 - draft agent creation persists only configuration objects
 - Agent Builder personality presets are control-plane creation templates only; they pre-fill `AgentBuildSpec.personality_prompt` before draft creation and do not add a preset identifier to runtime provisioning
 - launch validates the build spec, resolves workspace secret bindings, compiles the ordered skill stack into runtime settings, and then calls the existing runtime provisioning path
+- runtime provisioning writes the compiled prompt to the runtime home as `system-prompt.md`
+- `render-nullclaw-config.sh` exposes that prompt as a named NullClaw agent profile whose name is the runtime id
+- internal operator chat calls `nullclaw agent --agent <runtime-id> -m <message>`, so the UI-created personality and selected skills are active in chat checks
 - deployment history is now separate from runtime lifecycle state
 - runtime IDs currently reuse the agent slug as the execution identifier
 

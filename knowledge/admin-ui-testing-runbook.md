@@ -248,6 +248,9 @@ Current chat behavior:
 - session history is stored in Django DB
 - chat execution is buffered, not streaming
 - the control plane runs a one-shot runtime command and stores the response afterward
+- the one-shot command must select the runtime's named NullClaw profile with `--agent <runtime-id>`
+- assistant content must contain only the model response; Docker build output and config-render messages are transport noise and must not be stored as assistant chat text
+- for personality/skill smoke tests, ask the bot to identify its personality and selected operator skills; the expected answer should reflect the chosen preset and selected skills from Agent Studio
 
 Minimum successful proof:
 
@@ -356,12 +359,19 @@ Possible observed pattern:
 - assistant chat bubble includes Docker build output or bootstrap logs
 - the actual model answer appears only at the end of the message
 
-Treat this as a real finding.
+Treat this as a real finding if reproduced.
 
 Interpretation:
 
 - the control plane is surfacing transport/bootstrap output as assistant content
 - the operator chat is functionally working, but the UX and message boundary are incorrect
+
+Current expected state after the May 8, 2026 fix:
+
+- `docker compose run` uses `--quiet-build`
+- `render-nullclaw-config.sh` writes its "Rendered ..." status line to stderr
+- internal chat invokes `agent --agent <runtime-id> -m <message>`
+- a selected personality such as Viktor and selected skills such as Runtime Operator, LiteLLM Limits Manager, Secret Checker, and Log Trace Investigator are visible to the model through the runtime system prompt
 
 ### 3. Running lifecycle with unhealthy status after restore
 

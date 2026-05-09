@@ -80,27 +80,33 @@
       <input type="hidden" name="action" value="save_build_spec">
       <label>
         <span class="op-label">Personality Prompt</span>
+        <span class="op-help">Main behavior instruction for this agent. Relaunch after changing it so the runtime receives the new system prompt.</span>
         <textarea class="op-input" name="personality_prompt" rows="8">{{ detail.build_spec.personality_prompt }}</textarea>
       </label>
       <div class="op-grid cols-2">
         <label>
           <span class="op-label">Model Alias</span>
+          <span class="op-help">LiteLLM-facing model route used by this runtime.</span>
           <input class="op-input" type="text" name="model_alias" value="{{ detail.build_spec.model_alias }}">
         </label>
         <label>
           <span class="op-label">Gateway Port</span>
+          <span class="op-help">Local API port for the runtime gateway. Changing it requires relaunch/recreate.</span>
           <input class="op-input" type="number" name="gateway_port" value="{{ detail.build_spec.gateway_port }}">
         </label>
         <label>
           <span class="op-label">LiteLLM Budget USD</span>
+          <span class="op-help">Spend budget for this agent's LiteLLM key.</span>
           <input class="op-input" type="number" name="litellm_budget_usd" step="0.01" value="{{ detail.build_spec.litellm_budget_usd }}">
         </label>
         <label>
           <span class="op-label">LiteLLM RPM</span>
+          <span class="op-help">Requests per minute limit for this agent.</span>
           <input class="op-input" type="number" name="litellm_rpm_limit" value="{{ detail.build_spec.litellm_rpm_limit }}">
         </label>
         <label>
           <span class="op-label">LiteLLM TPM</span>
+          <span class="op-help">Tokens per minute limit for prompts and responses.</span>
           <input class="op-input" type="number" name="litellm_tpm_limit" value="{{ detail.build_spec.litellm_tpm_limit }}">
         </label>
       </div>
@@ -121,6 +127,7 @@
     <p class="op-kicker">Capabilities</p>
     <h2>Ordered Skills</h2>
     {% if detail.build_spec.skills %}
+    <p class="op-note">These skills are compiled into the launched runtime's system prompt and shown to the model as reviewed operator capabilities.</p>
     <ol class="op-ordered-list">
       {% for skill in detail.build_spec.skills %}
       <li><strong>{{ skill.display_name }}</strong> <span class="op-note">({{ skill.key }})</span></li>
