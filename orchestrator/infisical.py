@@ -45,7 +45,7 @@ def operator_token(api_url: str) -> str:
             ["infisical", "user", "get", "token", "--plain"],
             env={"INFISICAL_API_URL": api_url},
         )
-    except CommandError as exc:
+    except (CommandError, FileNotFoundError) as exc:
         raise InfisicalError(
             "No usable Infisical operator token found. Run `INFISICAL_API_URL=... infisical login` first or export INFISICAL_OPERATOR_TOKEN."
         ) from exc

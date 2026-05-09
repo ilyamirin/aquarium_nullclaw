@@ -72,6 +72,7 @@ Current CI implication:
 - otherwise the local `language: system` pre-commit hooks fail even when the Python environment is correct
 - the CI workflow has an explicit `Verify lint system tools` step so future failures show whether `shellcheck` and `shfmt` are present before `pre-commit` starts
 - first-party GitHub JavaScript actions should stay on Node 24-compatible major versions, currently `actions/checkout@v6` and `actions/setup-python@v6`, to avoid the Node 20 deprecation path
+- unit tests must not require the host Infisical CLI to be installed; missing `infisical` is normalized to an `InfisicalError` so read-only control-plane payloads degrade instead of crashing CI
 
 ## Security Scanner Recommendation
 
