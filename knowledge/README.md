@@ -27,6 +27,7 @@ If you are returning to the project after a break and need the operational truth
 If you want the public demo story first, start with:
 
 - [`../README.md`](../README.md)
+- [`../docs/index.html`](../docs/index.html)
 - [`../docs/architecture.md`](../docs/architecture.md)
 - [`../docs/demo-walkthrough.md`](../docs/demo-walkthrough.md)
 - [`../docs/security-model.md`](../docs/security-model.md)

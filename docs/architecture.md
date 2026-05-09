@@ -1,6 +1,6 @@
 # Aquarium Architecture
 
-Aquarium is a platform wrapper around an imported upstream NullClaw runtime. The point of the project is not to rewrite the runtime. The point is to show how to operate hosted agent runtimes with a proper control plane, a proper secrets boundary, and a proper LLM gateway.
+Aquarium is a platform wrapper around an imported upstream NullClaw runtime. The project does not try to rewrite the runtime. It shows how hosted agent runtimes can be operated with a focused control plane, a clear secrets boundary, and a dedicated LLM gateway.
 
 ## Component roles
 
@@ -16,7 +16,7 @@ flowchart TD
 
 ### `orchestrator/`
 
-The Python 3.12 orchestrator is the shared control-plane layer. It owns:
+The Python 3.12 orchestrator is the shared control-plane layer. It manages:
 
 - runtime lifecycle
 - local runtime inventory
@@ -56,7 +56,7 @@ LiteLLM is the mandatory LLM gateway for hosted runtimes. It owns:
 
 ### `nullclaw/`
 
-The upstream NullClaw checkout is intentionally treated as imported source. Aquarium wraps it. It does not casually modify it.
+The upstream NullClaw checkout is intentionally treated as imported source. Aquarium wraps it rather than editing it as part of normal platform work.
 
 ## Compose topology
 
@@ -82,4 +82,4 @@ The minimal visible demo path is:
 3. Django control plane
 4. `test-nullclaw`
 
-Monitoring stays in the repository but out of the default demo path so the public story stays small and readable.
+Monitoring stays in the repository but outside the default demo path, keeping the public story small and readable.

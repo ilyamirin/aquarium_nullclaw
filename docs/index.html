@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aquarium NullClaw Documentation</title>
+  <meta name="description" content="Aquarium is a local platform demo for operating hosted NullClaw-like agent runtimes with Infisical, LiteLLM, and a Django control plane.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%238be7b6'/%3E%3Cpath d='M19 47 31 15h6l12 32h-7l-2.5-7H28.2L25.8 47H19Zm11-13h7.5L33.8 23 30 34Z' fill='%2307110f'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07110f;
+      --panel: #0d1c19;
+      --panel-2: #102721;
+      --ink: #f0f6ef;
+      --muted: #a6b9b0;
+      --line: rgba(200, 255, 218, 0.14);
+      --accent: #8be7b6;
+      --accent-2: #f4c86a;
+      --danger: #ff8b8b;
+      --code: #071412;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+      --radius: 28px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(139, 231, 182, 0.20), transparent 34rem),
+        radial-gradient(circle at 88% 18%, rgba(244, 200, 106, 0.15), transparent 28rem),
+        linear-gradient(135deg, #06100e 0%, #091713 42%, #0b151c 100%);
+      color: var(--ink);
+      font: 16px/1.6 ui-sans-serif, "Aptos", "Segoe UI", system-ui, sans-serif;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 32px;
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 28px;
+      align-self: start;
+      min-height: calc(100vh - 56px);
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(7, 17, 15, 0.72);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(22px);
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent), #1e6f55);
+      color: #06100e;
+      font-weight: 900;
+      letter-spacing: -0.08em;
+    }
+
+    .brand strong {
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    nav {
+      display: grid;
+      gap: 6px;
+    }
+
+    nav a {
+      padding: 8px 10px;
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    nav a:hover {
+      background: rgba(139, 231, 182, 0.09);
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    .main {
+      min-width: 0;
+    }
+
+    .hero {
+      min-height: 72vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(380px, 0.75fr);
+      gap: 28px;
+      align-items: center;
+      padding: 42px;
+      border: 1px solid var(--line);
+      border-radius: 36px;
+      background: linear-gradient(135deg, rgba(13, 28, 25, 0.92), rgba(16, 39, 33, 0.68));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: auto -10% -30% 24%;
+      height: 260px;
+      background: radial-gradient(circle, rgba(139, 231, 182, 0.18), transparent 66%);
+      pointer-events: none;
+    }
+
+    .kicker {
+      color: var(--accent-2);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.05;
+      letter-spacing: -0.045em;
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin-top: 14px;
+      font-size: clamp(3.1rem, 5.1vw, 5.6rem);
+    }
+
+    h2 {
+      font-size: clamp(2.2rem, 4vw, 4rem);
+      margin-bottom: 16px;
+    }
+
+    h3 {
+      font-size: 1.45rem;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    .lede {
+      max-width: 780px;
+      margin-top: 24px;
+      font-size: clamp(1.08rem, 1.5vw, 1.35rem);
+      color: #d6e7df;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(139, 231, 182, 0.11);
+      color: var(--ink);
+      font-weight: 750;
+    }
+
+    .button.primary {
+      background: var(--accent);
+      color: #06100e;
+      border-color: transparent;
+    }
+
+    .hero-shot,
+    .shot {
+      width: 100%;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+      background: #06100e;
+    }
+
+    section {
+      margin-top: 30px;
+      padding: 34px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(13, 28, 25, 0.74);
+      box-shadow: var(--shadow);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 1.02rem;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .flow div {
+      min-height: 120px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: linear-gradient(160deg, rgba(139, 231, 182, 0.10), rgba(255, 255, 255, 0.03));
+    }
+
+    .flow b {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+
+    .code-card {
+      position: relative;
+      margin: 18px 0;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      overflow: hidden;
+      background: var(--code);
+    }
+
+    .code-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .copy-button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.78rem;
+      padding: 6px 10px;
+    }
+
+    pre[class*="language-"] {
+      margin: 0;
+      padding: 18px;
+      background: var(--code);
+      font-size: 0.93rem;
+      white-space: pre-wrap;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      overflow: hidden;
+      border-radius: 16px;
+    }
+
+    th, td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--accent-2);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    td {
+      color: var(--muted);
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px solid rgba(244, 200, 106, 0.34);
+      border-radius: 18px;
+      background: rgba(244, 200, 106, 0.08);
+      color: #eadbb8;
+    }
+
+    .warning {
+      border-color: rgba(255, 139, 139, 0.34);
+      background: rgba(255, 139, 139, 0.08);
+      color: #ffd2d2;
+    }
+
+    .shot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .caption {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    footer {
+      padding: 34px 6px 14px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 1120px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        min-height: auto;
+      }
+
+      nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .flow,
+      .grid,
+      .grid.two,
+      .shot-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .layout {
+        padding: 14px;
+      }
+
+      .hero,
+      section {
+        padding: 22px;
+        border-radius: 24px;
+      }
+
+      nav {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 3.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <strong>Aquarium NullClaw</strong>
+        <span>Hosted agent runtime platform demo</span>
+      </div>
+      <nav>
+        <a href="#overview">Overview</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#setup">Setup</a>
+        <a href="#secrets">Secrets</a>
+        <a href="#litellm">LiteLLM</a>
+        <a href="#infisical">Infisical</a>
+        <a href="#perimeter">Perimeter auth</a>
+        <a href="#create-bot">Create a bot</a>
+        <a href="#launch-test">Launch and test</a>
+        <a href="#diagnostics">Diagnostics</a>
+        <a href="#troubleshooting">Troubleshooting</a>
+        <a href="#licenses">Licenses</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="hero" id="overview">
+        <div>
+          <div class="kicker">Local platform engineering demo</div>
+          <h1>Run NullClaw-like agents as managed runtimes.</h1>
+        <p class="lede">Aquarium wraps an imported NullClaw runtime with an operator console, Infisical-backed secrets, LiteLLM budgets, per-runtime keys, diagnostics, and a local SSO perimeter.</p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/ilyamirin/aquarium_nullclaw">GitHub repository</a>
+            <a class="button" href="https://github.com/ilyamirin/aquarium_nullclaw/blob/main/LICENSE">MIT license</a>
+            <a class="button" href="./architecture.md">Architecture notes</a>
+          </div>
+        </div>
+        <img class="hero-shot" src="assets/operator-home-current.png" alt="Aquarium operator home screen">
+      </header>
+
+      <section id="architecture">
+        <div class="kicker">Architecture</div>
+        <h2>A control plane around the runtime, not a fork of it.</h2>
+        <p>Aquarium treats upstream NullClaw as imported runtime source. The platform work lives at the boundary: lifecycle, secrets, model access, limits, diagnostics, and operator workflows.</p>
+        <div class="flow" aria-label="Architecture flow">
+          <div><b>Operator UI</b>Django + Unfold surfaces for agents, runtimes, secrets, diagnostics, and chat.</div>
+          <div><b>Orchestrator</b>Python 3.12 service layer and CLI for runtime lifecycle and key provisioning.</div>
+          <div><b>Infisical</b>Secret source of truth with runtime-scoped projects and secret references.</div>
+          <div><b>NullClaw</b>Hosted agent runtime launched with generated config and isolated state.</div>
+          <div><b>LiteLLM</b>Mandatory model gateway for per-runtime keys, budgets, RPM/TPM, and spend tracking.</div>
+        </div>
+        <div class="note">Provider master keys stay in the LiteLLM core scope. NullClaw runtimes receive only a per-runtime LiteLLM key, the LiteLLM base URL, and non-LLM secrets such as Telegram credentials.</div>
+      </section>
+
+      <section id="setup">
+        <div class="kicker">Setup</div>
+        <h2>Bootstrap the real local stack.</h2>
+        <p>The project is intentionally real-only. A complete run requires real provider credentials and, if Telegram is enabled, a real bot token.</p>
+        <div class="grid">
+          <div class="card"><strong>Runtime</strong>Homebrew Python 3.12 and a repo-local `.venv`.</div>
+          <div class="card"><strong>Containers</strong>Docker Compose projects named with the `aquarium-` prefix.</div>
+          <div class="card"><strong>Secrets</strong>Infisical CLI login plus real OpenRouter and optional Telegram credentials.</div>
+        </div>
+        <div class="code-card">
+          <div class="code-title"><span>Bootstrap Python and Infisical</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">/opt/homebrew/bin/python3.12 -m venv .venv
+.venv/bin/pip install -e .[dev]
+cp infisical-stack/.env.example infisical-stack/.env
+make infisical-up
+INFISICAL_API_URL=http://127.0.0.1:18080 infisical login</code></pre>
+        </div>
+        <div class="code-card">
+          <div class="code-title"><span>Start the demo path</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">OPENROUTER_API_KEY=... TELEGRAM_BOT_TOKEN=... make demo-up
+make demo-check</code></pre>
+        </div>
+        <div class="code-card">
+          <div class="code-title"><span>Start the browser perimeter</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">make perimeter-tls
+make perimeter-bootstrap
+make perimeter-up
+make perimeter-health</code></pre>
+        </div>
+      </section>
+
+      <section id="secrets">
+        <div class="kicker">Secrets</div>
+        <h2>Secrets are centralized, scoped, and injected.</h2>
+        <p>Infisical is the source of truth. Aquarium creates or uses one secret scope per runtime and keeps provider master credentials out of runtime scopes.</p>
+        <div class="grid two">
+          <div class="card"><strong>LiteLLM core project</strong>Stores `LITELLM_MASTER_KEY`, `OPENROUTER_API_KEY`, and future provider master keys. Runtime containers do not receive these secrets.</div>
+          <div class="card"><strong>Runtime project</strong>Stores `LITELLM_API_KEY`, `TELEGRAM_BOT_TOKEN` when enabled, allow-list values, and runtime-specific integration secrets.</div>
+        </div>
+        <div class="code-card">
+          <div class="code-title"><span>Secret contract example</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-yaml">runtime_project:
+  env: prod
+  path: /runtime
+  secrets:
+    - LITELLM_API_KEY
+    - TELEGRAM_BOT_TOKEN
+    - TELEGRAM_ALLOW_FROM</code></pre>
+        </div>
+      </section>
+
+      <section id="litellm">
+        <div class="kicker">LiteLLM</div>
+        <h2>Model access goes through runtime keys.</h2>
+        <p>LiteLLM is the mandatory gateway between hosted runtimes and providers. The orchestrator provisions per-runtime keys and stores them back in Infisical.</p>
+        <div class="grid">
+          <div class="card"><strong>Budgets</strong>Each runtime key can carry a spend budget.</div>
+          <div class="card"><strong>Rate limits</strong>RPM and TPM limits are enforced before traffic reaches the provider.</div>
+          <div class="card"><strong>Revocation</strong>Operator actions can rotate or revoke a runtime key without exposing provider credentials.</div>
+        </div>
+        <img class="shot" src="assets/litellm-login-current.png" alt="LiteLLM login screen">
+        <p class="caption">LiteLLM UI is internal-only on loopback. The fallback login uses username `admin` and the current LiteLLM master key.</p>
+      </section>
+
+      <section id="infisical">
+        <div class="kicker">Infisical</div>
+        <h2>The secret store is independent of the runtime.</h2>
+        <p>Infisical keeps its own app-level authentication. The perimeter can gate access to the UI, but Infisical remains the authority for projects, environments, service tokens, and secret values.</p>
+        <div class="code-card">
+          <div class="code-title"><span>Useful endpoints</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">curl -fsS http://127.0.0.1:18080/api/status
+open https://secrets.lvh.me
+open http://127.0.0.1:18080</code></pre>
+        </div>
+      </section>
+
+      <section id="perimeter">
+        <div class="kicker">Perimeter auth</div>
+        <h2>Use the HTTPS perimeter for browser work.</h2>
+        <p>The supported browser path is Caddy + Authelia over local trusted TLS. The `lvh.me` aliases resolve to localhost without editing `/etc/hosts`.</p>
+        <div class="grid">
+          <div class="card"><strong>Control plane</strong><a href="https://app.lvh.me/admin/">https://app.lvh.me/admin/</a></div>
+          <div class="card"><strong>Auth portal</strong><a href="https://auth.lvh.me/">https://auth.lvh.me/</a></div>
+          <div class="card"><strong>Secrets UI</strong><a href="https://secrets.lvh.me/">https://secrets.lvh.me/</a></div>
+        </div>
+        <div class="code-card">
+          <div class="code-title"><span>Trusted local TLS</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">make perimeter-tls
+make perimeter-bootstrap
+make perimeter-up
+make perimeter-health</code></pre>
+        </div>
+        <div class="note">Authelia login for the local demo is `admin` / `admin`. If Django asks for its own bootstrap login, use `admin` / `admin` as well.</div>
+      </section>
+
+      <section id="create-bot">
+        <div class="kicker">Create a bot</div>
+        <h2>Draft first, launch explicitly.</h2>
+        <p>The Agent Builder creates a draft agent. Launch is a separate action from Agent Studio, which makes the runtime boundary visible and keeps secret validation explicit.</p>
+        <img class="shot" src="assets/agent-builder-current.png" alt="Agent Builder with identity, personality, channels, skills, limits, and secrets">
+        <div class="grid">
+          <div class="card"><strong>Slug</strong>The permanent technical name used in URLs, runtime ids, Docker services, Infisical projects, and local folders.</div>
+          <div class="card"><strong>Personality</strong>Choose a preset card or open Custom Prompt for a hand-written system prompt.</div>
+          <div class="card"><strong>Telegram</strong>If enabled, bind a Telegram Bot Secret. The UI stores a secret reference, not the token value.</div>
+        </div>
+      </section>
+
+      <section id="launch-test">
+        <div class="kicker">Launch and test</div>
+        <h2>Runtime launch creates config, keys, and state.</h2>
+        <p>At launch time Aquarium compiles the prompt and selected skills, creates or updates the runtime, provisions a LiteLLM key, writes per-runtime config, and starts the gateway.</p>
+        <img class="shot" src="assets/runtime-detail-current.png" alt="Runtime detail page with lifecycle, limits, keys, and secret references">
+        <div class="code-card">
+          <div class="code-title"><span>Runtime health</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">curl -fsS http://127.0.0.1:3927/health</code></pre>
+        </div>
+      </section>
+
+      <section id="diagnostics">
+        <div class="kicker">Diagnostics</div>
+        <h2>The operator UI shows cached state first.</h2>
+        <p>Normal page loads are read-only. Live probes, secret checks, smoke tests, and diagnostics refreshes are explicit operator actions, so ordinary GET requests do not put write pressure on SQLite.</p>
+        <img class="shot" src="assets/runtime-diagnostics-current.png" alt="Runtime diagnostics page with cached health and telemetry summaries">
+        <div class="grid two">
+          <div class="card"><strong>Cached summaries</strong>Fast pages for health, lifecycle, diagnostics, and recent action status.</div>
+          <div class="card"><strong>Explicit refresh</strong>Operator actions perform live runtime checks and persist the new snapshot.</div>
+        </div>
+      </section>
+
+      <section id="troubleshooting">
+        <div class="kicker">Troubleshooting</div>
+        <h2>Separate service health from browser auth.</h2>
+        <div class="code-card">
+          <div class="code-title"><span>Check core services</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">make infisical-health
+make litellm-health
+make perimeter-health
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'</code></pre>
+        </div>
+        <div class="code-card">
+          <div class="code-title"><span>Control plane maintenance</span><button class="copy-button">Copy</button></div>
+          <pre><code class="language-bash">make controlplane-migrate
+make controlplane-bootstrap-operator
+make controlplane-check</code></pre>
+        </div>
+        <div class="note warning">Do not commit `.env`, generated runtime config, service-token env files, or `perimeter-stack/certs/`. Secrets belong in Infisical, not in the repository.</div>
+      </section>
+
+      <section id="licenses">
+        <div class="kicker">Licenses</div>
+        <h2>Used solutions and license references.</h2>
+        <p>Aquarium itself is MIT licensed. Third-party tools keep their own licenses and terms.</p>
+        <table>
+          <thead>
+            <tr><th>Solution</th><th>Role</th><th>License / terms</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Aquarium</td><td>Platform wrapper and documentation</td><td><a href="https://github.com/ilyamirin/aquarium_nullclaw/blob/main/LICENSE">MIT</a></td></tr>
+            <tr><td>NullClaw</td><td>Imported upstream runtime</td><td><a href="https://github.com/nullclaw/nullclaw/blob/main/LICENSE">MIT</a></td></tr>
+            <tr><td>Infisical</td><td>Secrets source of truth</td><td><a href="https://github.com/Infisical/infisical/blob/main/LICENSE">MIT expat with enterprise exceptions</a></td></tr>
+            <tr><td><a href="https://github.com/BerriAI/litellm">LiteLLM</a></td><td>LLM gateway and key limits</td><td><a href="https://github.com/BerriAI/litellm/blob/main/LICENSE">MIT with enterprise exception</a></td></tr>
+            <tr><td><a href="https://www.djangoproject.com/">Django</a></td><td>Control-plane web framework</td><td><a href="https://github.com/django/django/blob/main/LICENSE">BSD-3-Clause</a></td></tr>
+            <tr><td><a href="https://unfoldadmin.com/">Django Unfold</a>, <a href="https://typer.tiangolo.com/">Typer</a>, <a href="https://docs.pydantic.dev/">Pydantic</a>, <a href="https://pyyaml.org/">PyYAML</a>, <a href="https://pytest.org/">pytest</a></td><td>Python application and testing stack</td><td>MIT or BSD-family via upstream license files</td></tr>
+            <tr><td><a href="https://requests.readthedocs.io/">Requests</a></td><td>HTTP client</td><td><a href="https://github.com/psf/requests/blob/main/LICENSE">Apache-2.0</a></td></tr>
+            <tr><td><a href="https://caddyserver.com/">Caddy</a></td><td>Local HTTPS reverse proxy</td><td><a href="https://github.com/caddyserver/caddy/blob/master/LICENSE">Apache-2.0</a></td></tr>
+            <tr><td><a href="https://www.authelia.com/">Authelia</a></td><td>Local SSO perimeter</td><td><a href="https://github.com/authelia/authelia/blob/master/LICENSE">Apache-2.0</a></td></tr>
+            <tr><td><a href="https://grafana.com/">Grafana</a>, <a href="https://grafana.com/oss/loki/">Loki</a>, <a href="https://grafana.com/oss/tempo/">Tempo</a></td><td>Optional observability UI/logs/traces</td><td>AGPL-3.0 for core projects</td></tr>
+            <tr><td><a href="https://grafana.com/oss/alloy-opentelemetry-collector/">Grafana Alloy</a></td><td>Telemetry collection</td><td><a href="https://github.com/grafana/alloy/blob/main/LICENSE">Apache-2.0</a></td></tr>
+            <tr><td><a href="https://www.docker.com/">Docker</a>, <a href="https://www.postgresql.org/">PostgreSQL</a>, <a href="https://redis.io/">Redis</a></td><td>Local infrastructure</td><td>Verify terms for the selected image tags before redistribution or production use</td></tr>
+            <tr><td><a href="https://prismjs.com/">Prism.js</a></td><td>Syntax highlighting on this page</td><td><a href="https://github.com/PrismJS/prism/blob/master/LICENSE">MIT</a></td></tr>
+            <tr><td><a href="https://openrouter.ai/">OpenRouter</a></td><td>External provider route</td><td>Commercial API service, not bundled</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer>
+        Aquarium NullClaw is a local platform demo by Ilya Mirin. Public docs are built as a static GitHub Pages page.
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+  <script>
+    document.querySelectorAll(".code-card").forEach(function (card) {
+      var button = card.querySelector(".copy-button");
+      var code = card.querySelector("code");
+      if (!button || !code) return;
+      button.addEventListener("click", async function () {
+        var text = code.textContent.trim();
+        await navigator.clipboard.writeText(text);
+        var previous = button.textContent;
+        button.textContent = "Copied";
+        window.setTimeout(function () {
+          button.textContent = previous;
+        }, 1200);
+      });
+    });
+  </script>
+</body>
+</html>

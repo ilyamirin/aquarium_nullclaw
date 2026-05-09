@@ -1,6 +1,6 @@
 # Security Model
 
-Aquarium is opinionated about where secrets are allowed to exist.
+Aquarium is strict about where secrets are allowed to exist.
 
 ## Core rule
 
@@ -22,7 +22,7 @@ The LiteLLM core secret scope stores:
 - `OPENROUTER_API_KEY`
 - future provider master credentials
 
-Only LiteLLM and operator automation should need that scope.
+Only LiteLLM and operator automation should need access to that scope.
 
 ### Runtime scopes
 
@@ -44,7 +44,7 @@ Runtime scopes do not store provider master credentials.
 
 ## Isolation model
 
-The hard isolation boundary is project-per-runtime plus key-per-runtime.
+The isolation boundary is project-per-runtime plus key-per-runtime.
 
 That gives Aquarium a clean story for:
 
@@ -70,7 +70,7 @@ NullClaw sees LiteLLM as its model endpoint. It does not talk to OpenRouter dire
 
 The current wrapper deliberately does not patch upstream NullClaw.
 
-That means the error mapping is only as good as the upstream/provider payload boundary:
+That means error mapping depends on the payloads returned by the upstream provider boundary:
 
 - LiteLLM RPM exhaustion maps cleanly to a user-visible `RateLimited` experience in NullClaw.
 - LiteLLM budget exhaustion currently reaches NullClaw as a generic `ApiError`.

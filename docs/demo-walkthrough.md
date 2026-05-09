@@ -1,6 +1,6 @@
 # Demo Walkthrough
 
-This is the shortest path to show Aquarium as a platform demo rather than as a pile of local ops scripts.
+This is the shortest path to show Aquarium as a platform demo rather than a collection of local operations scripts.
 
 ## 1. Start the demo path
 
@@ -18,12 +18,12 @@ If you are bootstrapping from scratch, you need:
 
 ## 2. Open the operator UI
 
-Open [http://127.0.0.1:15000/admin/](http://127.0.0.1:15000/admin/).
+Open the perimeter route: [https://app.lvh.me/admin/](https://app.lvh.me/admin/).
 
-Local bootstrap credentials:
+Local demo credentials:
 
-- username: `admin`
-- password: `admin`
+- Authelia login: `admin` / `admin`
+- Control-plane bootstrap login, if asked: `admin` / `admin`
 
 Start with the `test-nullclaw` runtime page. It shows:
 
@@ -34,7 +34,7 @@ Start with the `test-nullclaw` runtime page. It shows:
 - integrations and secret references
 - diagnostics summaries
 
-![Runtime detail](assets/controlplane-runtime-detail.png)
+![Runtime detail](assets/runtime-detail-current.png)
 
 ## 3. Open LiteLLM
 
@@ -52,13 +52,13 @@ Use LiteLLM to inspect:
 - model access
 - recent usage/spend
 
-![LiteLLM UI](assets/litellm-ui.png)
+![LiteLLM login](assets/litellm-login-current.png)
 
 ## 4. Open diagnostics or operator chat
 
-From the runtime page, open diagnostics or chat. This is the best place to show that the platform is not just provisioning runtimes; it is also exposing operator-friendly status and debugging surfaces.
+From the runtime page, open diagnostics or chat. This shows that Aquarium is not only provisioning runtimes; it also exposes operator-friendly status and debugging surfaces.
 
-![Operator chat](assets/runtime-chat.png)
+![Runtime diagnostics](assets/runtime-diagnostics-current.png)
 
 ## 5. Show the key platform boundary
 
@@ -70,7 +70,7 @@ The clean story to tell is:
 4. NullClaw talks only to LiteLLM.
 5. LiteLLM holds the provider master key and enforces budgets and rate limits.
 
-That is the core platform capability this repository demonstrates.
+That is the central platform capability this repository demonstrates.
 
 ## 6. Optional live chat proof
 
@@ -80,7 +80,7 @@ If `test-nullclaw` has Telegram configured, send the live bot a message and veri
 - the answer still goes through LiteLLM
 - the provider key never appears in the runtime config or runtime secret scope
 
-If Telegram is not configured, the runtime is still demoable through the built-in operator surfaces and one-shot runtime health/debug flow.
+If Telegram is not configured, the runtime is still demoable through the built-in operator surfaces and the runtime health/debug flow.
 
 ## 7. Lightweight image sequence
 
