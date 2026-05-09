@@ -40,7 +40,19 @@ random_password() {
 
 hash_password() {
   password="$1"
-  printf '%s' "$password" | openssl passwd -6 -stdin
+
+  if command -v htpasswd >/dev/null 2>&1; then
+    htpasswd -bnBC 12 "" "$password" | sed 's/^://'
+    return
+  fi
+
+  if printf '%s' "$password" | openssl passwd -6 -stdin >/dev/null 2>&1; then
+    printf '%s' "$password" | openssl passwd -6 -stdin
+    return
+  fi
+
+  echo "Missing password hash support: install htpasswd or an openssl build with passwd -6." >&2
+  exit 1
 }
 
 append_env_if_missing() {
@@ -118,6 +130,15 @@ EOF
 ensure_users_file() {
   if [ -f "$USERS_FILE" ]; then
     return
+  fi
+
+  if [ -d "$USERS_FILE" ]; then
+    if rmdir "$USERS_FILE" 2>/dev/null; then
+      echo "Removed empty directory at $USERS_FILE so Authelia users file can be written."
+    else
+      echo "$USERS_FILE is a directory. Remove it before bootstrapping the perimeter stack." >&2
+      exit 1
+    fi
   fi
 
   if [ -n "${AUTHELIA_ADMIN_PASSWORD_HASH-}" ]; then

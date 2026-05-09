@@ -66,6 +66,8 @@ If `perimeter-stack/authelia/users_database.yml` is missing, bootstrap creates i
 - or `AUTHELIA_ADMIN_PASSWORD`
 - or a one-time generated local password printed during bootstrap
 
+The bootstrap script writes a bcrypt hash through `htpasswd` when a cleartext local password is supplied. This is intentional because macOS system `openssl passwd` does not support the Linux-style `-6` option consistently. If Docker was started before bootstrap and created `perimeter-stack/authelia/users_database.yml` as an empty directory, rerunning bootstrap removes that empty directory and writes the expected file.
+
 If the local Infisical CLI session is available, bootstrap also copies `INFISICAL_OPERATOR_TOKEN` into the perimeter env file so the containerized control plane can resolve workspace-backed secrets without its own CLI login.
 
 ## Start And Health Check

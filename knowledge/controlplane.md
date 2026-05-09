@@ -548,6 +548,12 @@ Current automated control-plane coverage:
 - masked provider secret listing
 - Unfold admin dashboard and diagnostics page rendering
 
+Current operator UI layout contract:
+
+- operator pages intentionally override the Unfold `#main.bg-white` wrapper so the Aquarium dark background reaches the full viewport
+- agent builder choice cards must not use percentage `min-height`; grid stretch is enough, and percentage min-height can make cards overflow their step panels
+- layout smoke checks should verify no horizontal scroll, no sibling section overlap, and no child overflow inside `.op-composer-section`
+
 Primary test command:
 
 ```bash

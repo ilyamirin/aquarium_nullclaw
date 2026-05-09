@@ -390,6 +390,28 @@ For each meaningful step, keep:
 
 Do not rely on memory-only reporting.
 
+## Layout Smoke Checks
+
+Before reporting the admin UI as visually healthy, verify the main operator surfaces at desktop width:
+
+- `/admin/`
+- `/admin/agents/new/`
+- `/admin/runtime-wizard/`
+- `/admin/providers/`
+- `/admin/models/`
+- `/admin/integrations/`
+- `/admin/secrets/`
+- `/admin/vault/`
+
+Minimum browser checks:
+
+- `document.scrollingElement.scrollWidth <= window.innerWidth + 2`
+- adjacent `.op-composer-section` blocks do not overlap
+- direct children of `.op-composer-section` do not extend past the section bottom
+- `#main` does not render a light `bg-white` background around the Aquarium operator shell
+
+Treat favicon `404` as cosmetic only. Treat layout overlap, horizontal page scroll, or light wrapper backgrounds as admin UI bugs.
+
 ## Final Report Format
 
 The final report should always contain four sections:
